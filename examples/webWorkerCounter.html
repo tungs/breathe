@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<style>
+		</style>
+	</head>
+	<body>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/es6-promise/3.3.1/es6-promise.js"></script>
+		<button id="count">Get Count</button>
+		<span id="statusSpan"></span>
+		<script>
+			var worker = new Worker('counter-worker.js');
+			var statusSpan = document.getElementById('statusSpan');
+			worker.addEventListener('message', function(e){
+				statusSpan.textContent = e.data;
+			});
+			document.getElementById('count').addEventListener('click', function(){
+				worker.postMessage(null);
+			});
+		</script>
+	</body>
+</html>

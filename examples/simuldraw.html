@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<style>
+			div {
+				display: inline-block;
+			}
+			body {
+				background-color: black;
+			}
+		</style>
+	</head>
+	<body>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/es6-promise/3.3.1/es6-promise.js"></script>
+		<div>
+			<button id="leftStart">Start</button>
+			<button id="leftStop">Stop</button>
+			<button id="leftPause">Pause</button>
+			<button id="leftUnpause">Unpause</button><br>
+			<canvas id="leftCanvas"></canvas>
+		</div>
+		<div>
+			<button id="rightStart">Start</button>
+			<button id="rightStop">Stop</button>
+			<button id="rightPause">Pause</button>
+			<button id="rightUnpause">Unpause</button><br>
+			<canvas id="rightCanvas"></canvas>
+		</div>
+
+		<script src="../breathe.js"></script>
+		<script>
+		var getElement = function (id) {
+			return document.getElementById(id);
+		};
+
+		var width = 300, height = 300;
+		var leftCanvas = getElement('leftCanvas');
+		var leftCtx = leftCanvas.getContext('2d');
+		var rightCanvas = getElement('rightCanvas');
+		var rightCtx = rightCanvas.getContext('2d');
+
+		leftCanvas.width = width;
+		leftCanvas.height = height;
+		rightCanvas.width = width;
+		rightCanvas.height = height;
+
+		var noise = function (amount) {
+			return Math.random() * amount;
+		};
+		var drawLine = function (ctx, color) {
+			ctx.strokeStyle = color;
+			ctx.beginPath();
+			ctx.moveTo(noise(width), noise(height));
+			ctx.lineTo(noise(width), noise(height));
+			ctx.stroke();
+		};
+
+		var colors = [[0, 256, 256], [256, 0, 0], [256, 0, 256], [0, 0, 256], [0, 0, 0],
+			[256, 0, 0], [0, 256, 0], [0, 0, 256], [0, 256, 256], [256, 0, 0], [0, 256, 0]];
+
+		var drawLines = function (ctx) {
+			var j = 0;
+			return breathe.loop(function () { return j<20; }, function () {
+				var d = (j++)%10;
+				return breathe.times(100000, function(){
+					drawLine(ctx, 'rgba(' + Math.floor(noise(colors[d][0])) + ',' + Math.floor(noise(colors[d][1])) + ',' + Math.floor(noise(colors[d][2])) + ',0.02)');
+				});
+			});
+		};
+
+		var leftDraw;
+		getElement('leftStart').addEventListener('click', function(){
+/*
+			// compact way of running code either after a promise stops, or if it doesn't exist, (almost) immediately
+			Promise.resolve(leftDraw && leftDraw.stop).then(function(){
+				leftDraw = drawLines(leftCtx).then(null, function(e){ console.warn(e); });
+			});
+*/
+			if(leftDraw && leftDraw.stop){
+				leftDraw.stop();
+			}
+			leftDraw = drawLines(leftCtx).then(null, function(e){ console.warn(e); });
+		});
+		getElement('leftStop').addEventListener('click', function(){
+			leftDraw && leftDraw.stop();
+		});
+		getElement('leftPause').addEventListener('click', function(){
+			leftDraw && leftDraw.pause();
+		});
+		getElement('leftUnpause').addEventListener('click', function(){
+			leftDraw && leftDraw.unpause();
+		});
+
+		var rightDraw;
+		getElement('rightStart').addEventListener('click', function(){
+			if(rightDraw && rightDraw.stop){
+				rightDraw.stop();
+			}
+			rightDraw = drawLines(rightCtx).then(null, function(e){ console.warn(e); });
+		});
+		getElement('rightStop').addEventListener('click', function(){
+			rightDraw && rightDraw.stop();
+		});
+		getElement('rightPause').addEventListener('click', function(){
+			rightDraw && rightDraw.pause();
+		});
+		getElement('rightUnpause').addEventListener('click', function(){
+			rightDraw && rightDraw.unpause();
+		});
+
+
+		</script>
+	</body>
+</html>
