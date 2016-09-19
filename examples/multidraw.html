@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<style>
+			div {
+				display: inline-block;
+			}
+			body {
+				background-color: black;
+				color: white;
+			}
+		</style>
+	</head>
+	<body>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/es6-promise/3.3.1/es6-promise.js"></script>
+		<button id="create">Add Group</button><br>
+		<script src="../breathe.js"></script>
+		<script>
+		var createElement = function (type) {
+			return document.createElement(type);
+		};
+
+		var updateMessage = function(el, message) {
+			return function(){
+				el.textContent = message;
+			}
+		};
+
+		var width = 300, height = 300;
+		var noise = function (amount) {
+			return Math.random() * amount;
+		};
+		var drawLine = function (ctx, color) {
+			ctx.strokeStyle = color;
+			ctx.beginPath();
+			ctx.moveTo(noise(width), noise(height));
+			ctx.lineTo(noise(width), noise(height));
+			ctx.stroke();
+		};
+
+		var colors = [[0, 256, 256], [256, 0, 0], [256, 0, 256], [0, 0, 256], [0, 0, 0],
+			[256, 0, 0], [0, 256, 0], [0, 0, 256], [0, 256, 256], [256, 0, 0], [0, 256, 0]];
+
+		var drawLines = function (ctx) {
+			var j = 0;
+			return breathe.loop(function () { return j<20; }, function () {
+				var d = (j++)%10;
+				return breathe.times(100000, function(){
+					drawLine(ctx, 'rgba(' + Math.floor(noise(colors[d][0])) + ',' + Math.floor(noise(colors[d][1])) + ',' + Math.floor(noise(colors[d][2])) + ',0.02)');
+				});
+			});
+		};
+
+		var addGroup = function() {
+			var div = createElement('div');
+			var canvas = createElement('canvas');
+			var ctx = canvas.getContext('2d');
+			var startButton = createElement('button');
+			var stopButton = createElement('button');
+			var pauseButton = createElement('button');
+			var unpauseButton = createElement('button');
+			var statusSpan = createElement('span');
+			var drawPromise;
+			startButton.textContent = 'Start';
+			stopButton.textContent = 'Stop';
+			pauseButton.textContent = 'Pause';
+			unpauseButton.textContent = 'Unpause';
+			canvas.width = width;
+			canvas.height = height;
+
+			div.appendChild(startButton);
+			div.appendChild(stopButton);
+			div.appendChild(pauseButton);
+			div.appendChild(unpauseButton);
+			div.appendChild(createElement('br'));
+			div.appendChild(statusSpan);
+			div.appendChild(createElement('br'));
+			div.appendChild(canvas);
+			document.body.appendChild(div);
+			statusSpan.textContent = 'Not Running';
+			startButton.addEventListener('click', function(){
+				if(drawPromise && drawPromise.stop){
+					drawPromise.stop();
+				}
+				drawPromise = drawLines(ctx).then(updateMessage(statusSpan,'Finished'), function(e){ console.warn(e); });
+				statusSpan.textContent = 'Running';
+			});
+			stopButton.addEventListener('click', function(){
+				drawPromise && 
+				drawPromise.stop && 
+				drawPromise.stop().then(updateMessage(statusSpan,'Stopped'));
+			});
+			pauseButton.addEventListener('click', function(){
+				drawPromise && 
+				drawPromise.pause &&
+				drawPromise.pause().then(updateMessage(statusSpan,'Paused'));
+			});
+			unpauseButton.addEventListener('click', function(){
+				drawPromise && 
+				drawPromise.unpause &&
+				drawPromise.unpause().then(updateMessage(statusSpan,'Running'));
+			});
+		};
+
+		document.getElementById('create').addEventListener('click', function(){
+			addGroup();
+		});
+
+
+		addGroup();
+		addGroup();
+		addGroup();
+		addGroup();
+
+		</script>
+	</body>
+</html>
