@@ -16,7 +16,7 @@
 }(this, function(exports){
 	"use strict";  
 	var breathe = {
-		version = '0.1.0'
+		version: '0.1.0'
 	};
 
 	var batchTime = 20;
