@@ -99,7 +99,7 @@
 			unpauseButton.addEventListener('click', function(){
 				drawPromise && 
 				drawPromise.unpause &&
-				drawPromise.unpause().then(updateMessage(statusSpan,'Running'));
+				drawPromise.unpause().then(updateMessage(statusSpan,'Unpaused'));
 			});
 		};
 
