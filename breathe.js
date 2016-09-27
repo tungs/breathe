@@ -16,7 +16,7 @@
 }(this, function(exports){
 	"use strict";  
 	var breathe = {
-		version: '0.1.0'
+		version: '0.1.1'
 	};
 
 	var batchTime = 20;
@@ -55,6 +55,10 @@
 			}
 		}
 		return to;
+	};
+
+	var promisePass = function(a){
+		return a;
 	};
 
 	/**********************
@@ -131,12 +135,18 @@
 				pauseGate.reject(STOP_MESSAGE);
 				return Promise.resolve();
 			}
+			// add another event to the promise chain to trigger stopCallGate,
+			// in case if the promise chain is at the end
 			stopCallGate = breatheGate();
+			ret.then(promisePass);
 			return stopCallGate;
 		};
 		var defaultPause = function () {
 			_paused = true;
+			// add another event to the promise chain to trigger pauseCallGate,
+			// in case if the promise chain is at the end
 			pauseCallGate = breatheGate();
+			ret.then(promisePass); 
 			return pauseCallGate;
 		};
 		var defaultUnpause = function () {
@@ -373,6 +383,8 @@
 					}
 					return Promise.resolve();
 				}
+			}).then(function () {
+				// use an empty .then to reset pause, unpause, and stop
 			});
 		};
 	};
