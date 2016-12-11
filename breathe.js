@@ -1,59 +1,60 @@
 /* Copyright (c) Steve Tung All Rights Reserved */
 
-(function(root, factory){
-	'use strict';
-	var name = 'ImmediatePromise';
+(function (root, factory) {
+	"use strict";
+	var moduleName = 'breathe';
+	// TODO: detect node.js/web worker environment and ensure that 
+	//       requestAnimationFrame is not used
 	if(typeof define === 'function' && define.amd){
-		define([],function(){
-			return (root[name] = factory());
+		define([], function(){
+			return (root[moduleName] = factory(root));
 		});
-	} else if(typeof module === 'object' && module.exports){
-		module.exports = (root[name] = factory());
+	} else if (typeof module === 'object' && module.exports){
+		module.exports = (root[moduleName] = factory(root));
 	} else {
-		root[name] = factory();
+		root[moduleName] = factory(root);
 	}
-}(this, function(){
-	var states = {
+}(this, function(exports){
+	"use strict";
+
+	// first define ImmediatePromise
+	var promiseStates = {
 		pending: 1,
 		resolved: 2,
 		rejected: 3
 	};
-	var isFunction = function(f){
+	var isFunction = function (f) {
 		return typeof f === 'function';
 	};
-	var isObject = function(o){
+	var isObject = function (o) {
 		return typeof o === 'object';
 	};
-	var nextTick = function(fn){
-		setTimeout(fn, 0);
-	};
-
-	var ImmediatePromise = function(fn){
+	var ImmediatePromise = function (fn) {
 		var that = this;
-		this.state = states.pending;
+		this.state = promiseStates.pending;
 		this.immediate = ImmediatePromise.runImmediately;
 		
 		this._pendingThen = [];
 		this._pendingCatch = [];
 
-		this.resolve = function(value){
-			if(that.state !== states.pending) {
+		this.resolve = function (value) {
+			if(that.state !== promiseStates.pending) {
 				return;
 			}
-			that.state = states.resolved;
+			that.state = promiseStates.resolved;
 			that._value = value;
-			that._runFn (function(){
+			that._runFn(function () {
 				that._clearResolvedQueue();
 			});
 		};
 		
-		this.reject = function(reason){
-			if(that.state !== states.pending) {
+		this.reject = function (reason) {
+			if(that.state !== promiseStates.pending) {
 				return;
 			}
-			that.state = states.rejected;
+			that.state = promiseStates.rejected;
 			that._reason = reason;
-			that._runFn(function(){
+			that._runFn(function () {
 				that._clearRejectedQueue();
 			});
 		};
@@ -61,25 +62,6 @@
 		fn.call(this, this.resolve, this.reject);
 	};
 
-	ImmediatePromise.prototype._clearResolvedQueue = function(){
-		while(this._pendingThen.length){
-			this._pendingThen.shift()(this._value);
-		}
-	};
-
-	ImmediatePromise.prototype._clearRejectedQueue = function(){
-		while(this._pendingCatch.length){
-			this._pendingCatch.shift()(this._reason);
-		}
-	};
-
-	ImmediatePromise.prototype._runFn = function(fn){
-		if (this.immediate) {
-			fn();
-		} else {
-			setTimeout(fn, 0);
-		}
-	};
 
 	var _resolveValueOrPromise = function (that, d, resolve, reject){
 		var then;
@@ -90,7 +72,7 @@
 				return;
 			}
 			then = d && d.then;
-			if(isObject(d) && isFunction(then)) {
+			if( (isObject(d) || isFunction(d)) && isFunction(then)) {
 				then.call(d, function(val){
 					if(thenableCalled) {
 						return;
@@ -118,49 +100,66 @@
 		}
 	};
 
-	ImmediatePromise.prototype.then = function (onResolved, onRejected){
-		var that = this;
-		var p = {};
-		p = new ImmediatePromise(function(resolve, reject){
-			var resolveValue = (that.state === states.rejected) ? null : function(value){
-				if(isFunction(onResolved)){
-					try {
-						_resolveValueOrPromise(p, onResolved(value), resolve, reject);
-					} catch (e) {
-						reject (e);
-					}
-				} else {
-					resolve(value);
-				}
-			};
-
-			var catchReason = (that.state === states.resolved) ? null : function(reason){
-				if(isFunction(onRejected)){
-					try {
-						_resolveValueOrPromise(p, onRejected(reason), resolve, reject);
-					} catch (e) {
-						reject (e);
-					}
-				} else {
-					reject(reason);
-				}
-			};
-			
-			that._pendingThen.push(resolveValue);
-			that._pendingCatch.push(catchReason);
-			if (that.state === states.resolved) {
-				that._runFn(function(){
-					that._clearResolvedQueue();
-				})
-			} else if (that.state === states.rejected) {
-				that._runFn(function(){
-					that._clearRejectedQueue();
-				})
+	ImmediatePromise.prototype = {
+		_clearResolvedQueue: function () {
+			while (this._pendingThen.length) {
+				this._pendingThen.shift()(this._value);
 			}
-		});
-		return p;
-	};
-	
+		}, _clearRejectedQueue: function () {
+			while (this._pendingCatch.length){
+				this._pendingCatch.shift()(this._reason);
+			}
+		}, _runFn: function(fn){
+			if (this.immediate) {
+				fn();
+			} else {
+				setTimeout(fn, 0);
+			}
+		}, then: function (onResolved, onRejected) {
+			var that = this;
+			var p = {};
+			p = new ImmediatePromise(function(resolve, reject){
+				var resolveValue = (that.state === promiseStates.rejected) ? null : function(value){
+					if(isFunction(onResolved)){
+						try {
+							_resolveValueOrPromise(p, onResolved(value), resolve, reject);
+						} catch (e) {
+							reject (e);
+						}
+					} else {
+						resolve(value);
+					}
+				};
+
+				var catchReason = (that.state === promiseStates.resolved) ? null : function(reason){
+					if(isFunction(onRejected)){
+						try {
+							_resolveValueOrPromise(p, onRejected(reason), resolve, reject);
+						} catch (e) {
+							reject (e);
+						}
+					} else {
+						reject(reason);
+					}
+				};
+				
+				that._pendingThen.push(resolveValue);
+				that._pendingCatch.push(catchReason);
+				if (that.state === promiseStates.resolved) {
+					that._runFn(function(){
+						that._clearResolvedQueue();
+					})
+				} else if (that.state === promiseStates.rejected) {
+					that._runFn(function(){
+						that._clearRejectedQueue();
+					})
+				}
+			});
+			return p;
+		}, 'catch': function (onRejected) {
+			this.then(null, onRejected);
+		}
+	}	
 	ImmediatePromise.resolve = function(d) {
 		var p = new ImmediatePromise(function(resolve, reject){
 			_resolveValueOrPromise({}, d, resolve, reject);
@@ -176,30 +175,11 @@
 
 	ImmediatePromise.runImmediately = true;
 	
-	ImmediatePromise.states = states;
+	ImmediatePromise.states = promiseStates;
 
 	ImmediatePromise.version = '0.1.0';
 
-	return ImmediatePromise;
 
-}));
-
-(function (root, factory) {
-	"use strict";
-	var moduleName = 'breathe';
-	// TODO: detect node.js/web worker environment and ensure that 
-	//       requestAnimationFrame is not used
-	if(typeof define === 'function' && define.amd){
-		define([], function(){
-			return (root[moduleName] = factory(root));
-		});
-	} else if (typeof module === 'object' && module.exports){
-		module.exports = (root[moduleName] = factory(root));
-	} else {
-		root[moduleName] = factory(root);
-	}
-}(this, function(exports){
-	"use strict";  
 	var breathe = {
 		version: '0.1.2'
 	};
@@ -309,7 +289,6 @@
 	// .unpause() if they're implemented by a returned promise.
 	var pauseablePromise = function (init) {
 		var _promise = ImmediatePromise.resolve(init);
-//		var _promise = syncPromise(init);
 		var _paused = false;
 		var pauseGate = null;
 		var _stopped = false;
@@ -353,10 +332,6 @@
 				copyObj(objs, ret);
 				return ret;
 			},
-			// syncThen: function(o, e) {
-			// 	_promise.syncThen(o,e);
-			// 	return ret;
-			// },
 			then: function (o, e) {
 				if (!o) {
 					return ret['catch'](e);
@@ -493,7 +468,7 @@
 			return breathe.promise(new ImmediatePromise(function (resolve, reject) {
 				var work = function () {
 					if (stopCallGate) {
-						reject(STOP_MESSAGE+' 2');
+						reject(STOP_MESSAGE);
 						stopCallGate.resolve();
 						stopCallGate = null;
 						stopped = true;
@@ -505,7 +480,6 @@
 							pauseGate = null;
 							workQueue.push(work);
 						}, function (e) {
-							console.log('rejected!');
 							reject(e);							
 						});
 						pauseCallGate.resolve();
@@ -520,9 +494,9 @@
 							return;
 						}
 						b = body(b); // run body and store the result to b
-						if (b && (b.syncThen || b.then)) {
+						if (b && b.then) {
 							// if body() returned a promise
-							(b.syncThen || b.then)(function (arg) {
+							b.then(function (arg) {
 								b = arg;
 								workQueue.push(work);
 							}, function (e) {
@@ -546,8 +520,7 @@
 					stopped = true;
 				}
 				if (paused && pauseGate) {
-					pauseGate.reject(STOP_MESSAGE+" 3");
-//					pauseGate.resolve();
+					pauseGate.reject(STOP_MESSAGE);
 					pauseGate = null;
 					if (pauseCallGate) {
 						pauseCallGate.resolve();
