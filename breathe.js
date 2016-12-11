@@ -1,4 +1,5 @@
 /* Copyright (c) Steve Tung All Rights Reserved */
+
 (function (root, factory) {
 	"use strict";
 	var moduleName = 'breathe';
@@ -14,9 +15,173 @@
 		root[moduleName] = factory(root);
 	}
 }(this, function(exports){
-	"use strict";  
+	"use strict";
+
+	// first define ImmediatePromise
+	var promiseStates = {
+		pending: 1,
+		resolved: 2,
+		rejected: 3
+	};
+	var isFunction = function (f) {
+		return typeof f === 'function';
+	};
+	var isObject = function (o) {
+		return typeof o === 'object';
+	};
+	var ImmediatePromise = function (fn) {
+		var that = this;
+		this.state = promiseStates.pending;
+		this.immediate = ImmediatePromise.runImmediately;
+		
+		this._pendingThen = [];
+		this._pendingCatch = [];
+
+		this.resolve = function (value) {
+			if(that.state !== promiseStates.pending) {
+				return;
+			}
+			that.state = promiseStates.resolved;
+			that._value = value;
+			that._runFn(function () {
+				that._clearResolvedQueue();
+			});
+		};
+		
+		this.reject = function (reason) {
+			if(that.state !== promiseStates.pending) {
+				return;
+			}
+			that.state = promiseStates.rejected;
+			that._reason = reason;
+			that._runFn(function () {
+				that._clearRejectedQueue();
+			});
+		};
+		
+		fn.call(this, this.resolve, this.reject);
+	};
+
+
+	var _resolveValueOrPromise = function (that, d, resolve, reject){
+		var then;
+		var thenableCalled = false;
+		try {
+			if(d===that){
+				reject(new TypeError("Recursive Promise Detected"));
+				return;
+			}
+			then = d && d.then;
+			if( (isObject(d) || isFunction(d)) && isFunction(then)) {
+				then.call(d, function(val){
+					if(thenableCalled) {
+						return;
+					}
+					if(d===val){
+						reject(new TypeError("Recursive Promise Detected"));
+						return;
+					}
+					thenableCalled = true;
+					_resolveValueOrPromise(that, val, resolve, reject);
+				}, function(reason){
+					if(thenableCalled){
+						return;
+					}
+					thenableCalled = true;
+					reject(reason);
+				});
+			} else {
+				resolve(d);
+			}
+		} catch (e) {
+			if(!thenableCalled) {
+				reject(e);
+			}
+		}
+	};
+
+	ImmediatePromise.prototype = {
+		_clearResolvedQueue: function () {
+			while (this._pendingThen.length) {
+				this._pendingThen.shift()(this._value);
+			}
+		}, _clearRejectedQueue: function () {
+			while (this._pendingCatch.length){
+				this._pendingCatch.shift()(this._reason);
+			}
+		}, _runFn: function(fn){
+			if (this.immediate) {
+				fn();
+			} else {
+				setTimeout(fn, 0);
+			}
+		}, then: function (onResolved, onRejected) {
+			var that = this;
+			var p = {};
+			p = new ImmediatePromise(function(resolve, reject){
+				var resolveValue = (that.state === promiseStates.rejected) ? null : function(value){
+					if(isFunction(onResolved)){
+						try {
+							_resolveValueOrPromise(p, onResolved(value), resolve, reject);
+						} catch (e) {
+							reject (e);
+						}
+					} else {
+						resolve(value);
+					}
+				};
+
+				var catchReason = (that.state === promiseStates.resolved) ? null : function(reason){
+					if(isFunction(onRejected)){
+						try {
+							_resolveValueOrPromise(p, onRejected(reason), resolve, reject);
+						} catch (e) {
+							reject (e);
+						}
+					} else {
+						reject(reason);
+					}
+				};
+				
+				that._pendingThen.push(resolveValue);
+				that._pendingCatch.push(catchReason);
+				if (that.state === promiseStates.resolved) {
+					that._runFn(function(){
+						that._clearResolvedQueue();
+					})
+				} else if (that.state === promiseStates.rejected) {
+					that._runFn(function(){
+						that._clearRejectedQueue();
+					})
+				}
+			});
+			return p;
+		}, 'catch': function (onRejected) {
+			this.then(null, onRejected);
+		}
+	}	
+	ImmediatePromise.resolve = function(d) {
+		var p = new ImmediatePromise(function(resolve, reject){
+			_resolveValueOrPromise({}, d, resolve, reject);
+		});
+		return p;
+	};
+	
+	ImmediatePromise.reject = function(e){
+		return new ImmediatePromise(function(resolve, reject){
+			reject(e);
+		});
+	};
+
+	ImmediatePromise.runImmediately = true;
+	
+	ImmediatePromise.states = promiseStates;
+
+	ImmediatePromise.version = '0.1.0';
+
+
 	var breathe = {
-		version: '0.1.1'
+		version: '0.1.2'
 	};
 
 	var batchTime = 20;
@@ -95,13 +260,14 @@
 	/**********************
 	 * Classes
 	 **********************/
-	 
+
+
 	// basicPromise is promise-like, by implementing then and catch, but it 
 	// returns itself when invoking those functions instead of a new Promise. 
 	// This preserves methods attached to the object (like .resolve() and 
 	//.release() in breatheGate) when creating a chain.
 	var basicPromise = function (init) {
-		var _promise = Promise.resolve(init);
+		var _promise = ImmediatePromise.resolve(init);
 		var ret = {
 			then: function (o,e) {
 				_promise = _promise.then(o, e);
@@ -122,7 +288,7 @@
 	// stopping and pausing. It then overwrites .stop(), .pause(), and 
 	// .unpause() if they're implemented by a returned promise.
 	var pauseablePromise = function (init) {
-		var _promise = Promise.resolve(init);
+		var _promise = ImmediatePromise.resolve(init);
 		var _paused = false;
 		var pauseGate = null;
 		var _stopped = false;
@@ -133,7 +299,7 @@
 			_stopped = true;
 			if (_paused && pauseGate) {
 				pauseGate.reject(STOP_MESSAGE);
-				return Promise.resolve();
+				return ImmediatePromise.resolve();
 			}
 			// add another event to the promise chain to trigger stopCallGate,
 			// in case if the promise chain is at the end
@@ -155,7 +321,7 @@
 				pauseGate.resolve();
 				pauseGate = null;
 			}
-			return Promise.resolve(true);
+			return ImmediatePromise.resolve(true);
 		};
 		var ret = {
 			addMethod: function (name, fn) {
@@ -176,7 +342,7 @@
 							stopCallGate.resolve();
 							stopCallGate = null;
 						}
-						return Promise.reject(STOP_MESSAGE);
+						return ImmediatePromise.reject(STOP_MESSAGE);
 					}
 					if (_paused) {
 						if (pauseCallGate) {
@@ -191,7 +357,7 @@
 						});
 					} else {
 						if (forceQueue) {
-							return new Promise(function (resolve, reject) {
+							return new ImmediatePromise(function (resolve, reject) {
 								workQueue.push(function () {
 									try {
 										var a = o(obj);
@@ -248,7 +414,7 @@
 	var breatheGate = function () {
 		var resolveCall;
 		var rejectCall;
-		var ret = basicPromise(new Promise(function (resolve, reject) {
+		var ret = basicPromise(new ImmediatePromise(function (resolve, reject) {
 			resolveCall = resolve;
 			rejectCall = reject;
 		}));
@@ -299,7 +465,7 @@
 			var stopCallGate = null;
 			var cancelID = null;
 //			var timeout = config.timeoutMode || breathe.requestAnimationFrame();
-			return breathe.promise(new Promise(function (resolve, reject) {
+			return breathe.promise(new ImmediatePromise(function (resolve, reject) {
 				var work = function () {
 					if (stopCallGate) {
 						reject(STOP_MESSAGE);
@@ -314,7 +480,7 @@
 							pauseGate = null;
 							workQueue.push(work);
 						}, function (e) {
-							reject(e);
+							reject(e);							
 						});
 						pauseCallGate.resolve();
 						pauseCallGate = null;
@@ -360,7 +526,7 @@
 						pauseCallGate.resolve();
 						pauseCallGate = null;
 					}
-					return Promise.resolve();
+					return ImmediatePromise.resolve();
 				}
 				stopCallGate = breatheGate();
 				return ret || stopCallGate;
@@ -381,7 +547,7 @@
 						pauseGate.resolve();
 						pauseGate = null;
 					}
-					return Promise.resolve();
+					return ImmediatePromise.resolve();
 				}
 			}).then(function () {
 				// use an empty .then to reset pause, unpause, and stop
@@ -392,7 +558,7 @@
 	breathe.promise.timeout = function (timeout) {
 		timeout = timeout || 0;
 		return function(arg){
-			return new Promise(function (resolve, reject) {
+			return new ImmediatePromise(function (resolve, reject) {
 				setTimeout(function () {
 					resolve(arg);
 				}, timeout);
