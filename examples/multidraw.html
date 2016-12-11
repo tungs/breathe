@@ -47,7 +47,7 @@
 			return breathe.loop(function () { return j<20; }, function () {
 				var d = (j++)%10;
 				return breathe.times(100000, function(){
-					drawLine(ctx, 'rgba(' + Math.floor(noise(colors[d][0])) + ',' + Math.floor(noise(colors[d][1])) + ',' + Math.floor(noise(colors[d][2])) + ',0.02)');
+					drawLine(ctx, 'rgba(' + Math.floor(noise(colors[d][0])) + ',' + Math.floor(noise(colors[d][1])) + ',' + Math.floor(noise(colors[d][2])) + ',0.04)');
 				});
 			});
 		};
@@ -99,7 +99,7 @@
 			unpauseButton.addEventListener('click', function(){
 				drawPromise && 
 				drawPromise.unpause &&
-				drawPromise.unpause().then(updateMessage(statusSpan,'Unpaused'));
+				drawPromise.unpause().then(updateMessage(statusSpan,'Running'));
 			});
 		};
 
