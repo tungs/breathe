@@ -2,7 +2,7 @@
 
 ## Unfreeze your code with breathe.js
 
-Using breathe.js, you can adapt your JavaScript code to be asynchronous, pausable, and nonblocking, while running in the main thread.
+Using breathe.js, you can adapt your JavaScript code to be asynchronous, pausable, and nonblocking, while running in the main thread of a web page.
 
 ### How does it work?
 With breathe.js, you subdivide large, computation-heavy functions into smaller tasks that don't run all at once. The library offers a general replacement to loops (a primary source of blocking code), exiting after a certain amount of time and allowing the webpage and other parts of the program to respond, before reentering the loop. Converting code is fairly straightforward, preserving a function's overall structure and logic.
@@ -10,7 +10,7 @@ With breathe.js, you subdivide large, computation-heavy functions into smaller t
 Breathe.js supports, and extensively uses promises, to make it easier to structure asynchronous code and handle errors. What's more, the library uses a variant of promises that adds methods to stop, pause, and unpause the promise.
 
 ### Can't web workers run asynchronous, nonblocking code?
-Unfortunately web workers can't do everything (yet). They can't acccess DOM, nor can most browsers' web workers access a canvas (though there is an OffscreenCanvas in development). You may also want to show a function as it is run, like showing a drawing as it is generated, which would require some nonblocking element.
+Unfortunately web workers can't do everything (yet). Variables aren't easily shared with a page's main thread, instead relying on message passing. Workers can't acccess DOM, nor can most browsers' web workers access a canvas (though there is an [OffscreenCanvas](https://developer.mozilla.org/en-US/docs/Web/API/OffscreenCanvas) in development). You may also want to show a function as it is run, like showing a drawing as it is generated, which would require some nonblocking element. Since breathe.js can run inside the main thread of a page, it can access variables, DOM, and canvases within the page.
 
 Web workers still use a single thread within the worker, meaning a computation-heavy function can block other code -- namely message handling-- from running. Breathe.js works within web workers, so they can respond in the middle of executing a long-running function. It also makes it easy to pause and unpause code running within the worker.
 
@@ -36,7 +36,7 @@ You don't need to have both synchronous code or asynchronous code, but you proba
 
 Asynchronous code usually involves subsequent code blocks. For instance, breathe.loop takes a body as an argument, which is a code block. This allows you to nest loops:
 ```js
-function nestedLoop {
+function nestedLoop() {
   var running;
   running = true;
   return breathe.loop(function () { return running; }, function () {
@@ -55,7 +55,7 @@ function nestedLoop {
 
 You can use the .then() method of promises (the asynchronous code) to chain code blocks together, so you can run code after asynchronous code completes.
 ```js
-function sequentialLoops {
+function sequentialLoops() {
   var i = 0;
   return breathe.loop(function () { i++ < 50;}, function () { 
       console.log('Counting up: ', i);
