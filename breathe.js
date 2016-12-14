@@ -17,7 +17,7 @@
 }(this, function(exports){
 	"use strict";
 
-	// first define ImmediatePromise
+	// defining ImmediatePromise
 	var promiseStates = {
 		pending: 1,
 		resolved: 2,
@@ -119,7 +119,8 @@
 			var that = this;
 			var p = {};
 			p = new ImmediatePromise(function(resolve, reject){
-				var resolveValue = (that.state === promiseStates.rejected) ? null : function(value){
+				var resolveValue = (that.state === promiseStates.rejected) ? null : 
+				function(value){						
 					if(isFunction(onResolved)){
 						try {
 							_resolveValueOrPromise(p, onResolved(value), resolve, reject);
@@ -131,7 +132,8 @@
 					}
 				};
 
-				var catchReason = (that.state === promiseStates.resolved) ? null : function(reason){
+				var catchReason = (that.state === promiseStates.resolved) ? null : 
+				function(reason){
 					if(isFunction(onRejected)){
 						try {
 							_resolveValueOrPromise(p, onRejected(reason), resolve, reject);
@@ -179,9 +181,10 @@
 
 	ImmediatePromise.version = '0.1.0';
 
+	// defining breathe
 
 	var breathe = {
-		version: '0.1.2'
+		version: '0.1.3'
 	};
 
 	var batchTime = 20;
@@ -195,7 +198,8 @@
 	/**********************
 	 * Utility Functions
 	 **********************/
-	var timer = (typeof performance !== 'undefined' && performance.now ? performance : { 
+	var timer = (typeof performance !== 'undefined' && performance.now ? 
+	performance : { 
 		now: function () {
 			return new Date().getTime();
 		}
@@ -229,23 +233,42 @@
 	/**********************
 	* Main loop
 	***********************/
+	var preWorkQueue = [];
 	var workQueue = [];
-	// TODO: because promises don't resolve synchronously, they only get 
-	//       executed once per work cycle. Maybe have a pending promises to 
-	//       know when to exit the loop early?
-	// TODO: implement a way to synchronously call doSomeWork(), while still 
-	//       respecting execution times and timeouts
+	var postWorkQueue = [];
 	// TODO: can add performance tracking if work is tagged with an id
 	var doSomeWork = function() {
 		var start = timer.now();
-		var ind = 0;
-		while (ind < workQueue.length && timer.now() - start < batchTime) {
-			workQueue[ind]();
-			ind++;
+		var ind;
+
+		// preWorkQueue is work that is always executed before a batch of work
+		// usually adds work to the workQueue and calls event handlers
+		for (ind = 0; ind < preWorkQueue.length; ind++) {
+			preWorkQueue[ind]();
 		}
-		if(workQueue.length){
-			workQueue.splice(0, ind);
+		preWorkQueue = [];
+
+		// The workQueue is the main queue for running work. It sustains a loop by
+		// the .work() function adding more items to the workQueue
+		for (ind = 0; ind < workQueue.length 
+			&& timer.now() - start < batchTime; ind++) {
+			workQueue[ind].work();
 		}
+
+		// If a queue is not completed within a batch, run .cooldown() for the 
+		// remaining items. It usually adds work to the preWorkQueue 
+		// and calls event handlers.
+		for (ind = ind; ind<workQueue.length; ind++) {
+			workQueue[ind].cooldown();
+		}
+		workQueue = [];
+
+
+		for (ind = 0; ind<postWorkQueue.length; ind++) {
+			postWorkQueue[ind]();
+		}
+		postWorkQueue = [];
+
 		// TODO: check actual execution time, maybe adjust timeout to reflect
 		// excessively long jobs?
 		setTimeout(doSomeWork, 0);
@@ -275,7 +298,8 @@
 			}
 		};
 		ret['catch'] = function (e) { 
-			// ret['catch'] is used instead of ret.catch, for IE <9 compatibility (with Promise polyfills)
+			// ret['catch'] is used instead of ret.catch, 
+			// for IE <9 compatibility (with Promise polyfills)
 			_promise = _promise.then(null, e);
 			return ret;
 		};
@@ -456,7 +480,8 @@
 			var ret = config.ret;
 			var target = config.chunkTime || 20;
 			var chunkTimeout = config.chunkTimeout || 0;
-			var b = initVal;		// value to pass to the loop body and the value returned from the body
+			// value to pass to the loop body and the value returned from the body
+			var b = initVal;
 			var stopped = false; // for stoppable loops
 			var paused = false;
 			var finished = false;
@@ -464,8 +489,24 @@
 			var pauseCallGate = null;
 			var stopCallGate = null;
 			var cancelID = null;
-//			var timeout = config.timeoutMode || breathe.requestAnimationFrame();
+			var batchIteration = 0;
 			return breathe.promise(new ImmediatePromise(function (resolve, reject) {
+				var warmup = function() {
+					workQueue.push({work: work, cooldown: cooldown});
+					batchIteration = 0;
+					if (config.onBeginBatch) {
+						config.onBeginBatch();
+					}
+				};
+				var reenterWork = function() {
+					preWorkQueue.push(warmup);
+				};
+				var cooldown = function() {
+					reenterWork();
+					if (config.onEndBatch) {
+						config.onEndBatch();
+					}
+				};
 				var work = function () {
 					if (stopCallGate) {
 						reject(STOP_MESSAGE);
@@ -478,7 +519,7 @@
 					if (pauseCallGate) {
 						pauseGate = breatheGate().then(function () {
 							pauseGate = null;
-							workQueue.push(work);
+							reenterWork();
 						}, function (e) {
 							reject(e);							
 						});
@@ -488,6 +529,7 @@
 						return;
 					}
 					try {
+						batchIteration++;
 						if (!condition()) {
 							finished = true;
 							resolve(ret ? ret() : b);
@@ -498,20 +540,20 @@
 							// if body() returned a promise
 							b.then(function (arg) {
 								b = arg;
-								workQueue.push(work);
+								reenterWork();
 							}, function (e) {
 								finished = true;
 								reject(e); // pass the error up the chain
 							});
 							return;
 						} else {
-							workQueue.push(work);
+							workQueue.push({work: work, cooldown: cooldown});
 						}
 					} catch (e) {
 						reject(e);
 					}
 				}
-				workQueue.push(work);
+				reenterWork();
 			})).addMethod('stop', function () {
 				var ret;
 				if(b && b.then && b.stop){
