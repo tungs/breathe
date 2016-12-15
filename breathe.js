@@ -184,7 +184,7 @@
 	// defining breathe
 
 	var breathe = {
-		version: '0.1.3'
+		version: '0.1.4'
 	};
 
 	var batchTime = 20;
@@ -490,6 +490,7 @@
 			var stopCallGate = null;
 			var cancelID = null;
 			var batchIteration = 0;
+			var throttle = (config && config.throttle ? config.throttle : 0);
 			return breathe.promise(new ImmediatePromise(function (resolve, reject) {
 				var warmup = function() {
 					workQueue.push({work: work, cooldown: cooldown});
@@ -530,6 +531,10 @@
 					}
 					try {
 						batchIteration++;
+						if (throttle && batchIteration > throttle) {
+							postWorkQueue.push(cooldown);
+							return;
+						}
 						if (!condition()) {
 							finished = true;
 							resolve(ret ? ret() : b);
