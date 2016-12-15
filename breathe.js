@@ -184,7 +184,7 @@
 	// defining breathe
 
 	var breathe = {
-		version: '0.1.4'
+		version: '0.1.5'
 	};
 
 	var batchTime = 20;
@@ -545,7 +545,8 @@
 							// if body() returned a promise
 							b.then(function (arg) {
 								b = arg;
-								reenterWork();
+								// can alternatively call reenterWork(), but that skips the current batch
+								workQueue.push({work: work, cooldown: cooldown});
 							}, function (e) {
 								finished = true;
 								reject(e); // pass the error up the chain
@@ -558,7 +559,7 @@
 						reject(e);
 					}
 				}
-				reenterWork();
+				warmup();
 			})).addMethod('stop', function () {
 				var ret;
 				if(b && b.then && b.stop){
