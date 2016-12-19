@@ -184,7 +184,7 @@
 	// defining breathe
 
 	var breathe = {
-		version: '0.1.5'
+		version: '0.1.6'
 	};
 
 	var batchTime = 20;
@@ -332,6 +332,9 @@
 			return stopCallGate;
 		};
 		var defaultPause = function () {
+			if(_paused) {
+				return pauseCallGate;
+			}
 			_paused = true;
 			// add another event to the promise chain to trigger pauseCallGate,
 			// in case if the promise chain is at the end
@@ -511,9 +514,9 @@
 				var work = function () {
 					if (stopCallGate) {
 						reject(STOP_MESSAGE);
+						stopped = true;
 						stopCallGate.resolve();
 						stopCallGate = null;
-						stopped = true;
 						finished = true;
 						return;
 					}
@@ -524,9 +527,9 @@
 						}, function (e) {
 							reject(e);							
 						});
+						paused = true;
 						pauseCallGate.resolve();
 						pauseCallGate = null;
-						paused = true;
 						return;
 					}
 					try {
@@ -582,6 +585,9 @@
 				if (b && b.then && b.pause) {
 					return b.pause();
 				} else {
+					if (paused) {
+						return pauseCallGate || ImmediatePromise.resolve();
+					}
 					paused = true;
 					pauseCallGate = breatheGate();
 					return pauseCallGate;
