@@ -184,7 +184,7 @@
 	// defining breathe
 
 	var breathe = {
-		version: '0.1.6'
+		version: '0.1.7-0.1.0'
 	};
 
 	var batchTime = 20;
@@ -311,14 +311,14 @@
 	// promise chains. Additionally, the .then() function adds checks for 
 	// stopping and pausing. It then overwrites .stop(), .pause(), and 
 	// .unpause() if they're implemented by a returned promise.
-	var pauseablePromise = function (init) {
+	var pauseablePromise = function (init, config) {
+		config = config || {};
 		var _promise = ImmediatePromise.resolve(init);
 		var _paused = false;
 		var pauseGate = null;
 		var _stopped = false;
 		var pauseCallGate = null;
 		var stopCallGate = null;
-		var forceQueue = false;
 		var defaultStop = function () {
 			_stopped = true;
 			if (_paused && pauseGate) {
@@ -350,6 +350,26 @@
 			}
 			return ImmediatePromise.resolve(true);
 		};
+		var handleGates = function (obj) {
+			if (_stopped) {
+				if (stopCallGate) {
+					stopCallGate.resolve();
+					stopCallGate = null;
+				}
+				return ImmediatePromise.reject(STOP_MESSAGE);
+			}
+			if (_paused) {
+				if (pauseCallGate) {
+					pauseCallGate.resolve();
+					pauseCallGate = null;
+				}
+				pauseGate = breatheGate();
+				return pauseGate.then(function () {
+					return obj;
+				});
+			}
+			return obj;
+		};
 		var ret = {
 			addMethod: function (name, fn) {
 				ret[name] = fn;
@@ -363,45 +383,33 @@
 				if (!o) {
 					return ret['catch'](e);
 				}
-				_promise = _promise.then(function (obj) {
-					if (_stopped) {
-						if (stopCallGate) {
-							stopCallGate.resolve();
-							stopCallGate = null;
-						}
-						return ImmediatePromise.reject(STOP_MESSAGE);
-					}
-					if (_paused) {
-						if (pauseCallGate) {
-							pauseCallGate.resolve();
-							pauseCallGate = null;
-						}
-						pauseGate = breatheGate();
-						return pauseGate.then(function () {
-							var a = o(obj);
-							setMethods(a);
-							return a;
+				_promise = _promise.then(handleGates)
+					.then(function (obj) {
+						return new ImmediatePromise(function (resolve, reject) {
+							var work = function () {
+								try {
+									var a = o(obj);
+									setMethods(a);
+									resolve(a);
+								} catch (e) {
+									reject(e);
+								}
+							};
+							var warmup = function() {
+								workQueue.push({work: work, cooldown: cooldown});
+								if (config.onBeginBatch) {
+									config.onBeginBatch();
+								}
+							};
+							var cooldown = function() {
+								preWorkQueue.push(warmup);
+								if (config.onEndBatch) {
+									config.onEndBatch();
+								}
+							};
+							workQueue.push({work: work, cooldown: cooldown});
 						});
-					} else {
-						if (forceQueue) {
-							return new ImmediatePromise(function (resolve, reject) {
-								workQueue.push(function () {
-									try {
-										var a = o(obj);
-										setMethods(a);
-										resolve(a);
-									} catch (e) {
-										reject(e);
-									}
-								});							
-							})
-						} else {
-							var a = o(obj);
-							setMethods(a);
-							return a;								
-						}
-					}
-				}, e || null);
+					}, e || null);
 				return ret;
 			}
 		};
@@ -422,7 +430,7 @@
 				ret.pause = defaultPause;
 				ret.unpause = defaultUnpause;
 			}
-			return o;
+			return ret;
 		};
 		setMethods();
 		return ret;
@@ -432,7 +440,7 @@
 	breathe.start = function (init) {
 		return breathe.promise(init);
 	};
-	
+
 	breathe.next = {};
 	
 	// breatheGate is a basicPromise that doesn't resolve or reject until 
@@ -485,6 +493,9 @@
 			var chunkTimeout = config.chunkTimeout || 0;
 			// value to pass to the loop body and the value returned from the body
 			var b = initVal;
+			// TODO: since there can't be simultaneous states, may want to define states:
+			// [starting,] running, pausing, paused, unpausing,
+			// stopping, stopped, and finished
 			var stopped = false; // for stoppable loops
 			var paused = false;
 			var finished = false;
@@ -588,6 +599,9 @@
 					if (paused) {
 						return pauseCallGate || ImmediatePromise.resolve();
 					}
+					if(pauseCallGate) {
+						return pauseCallGate;
+					}
 					paused = true;
 					pauseCallGate = breatheGate();
 					return pauseCallGate;
@@ -632,7 +646,7 @@
 		iterations = config.iterations || iterations;
 		var c = copyObj(config, {});
 
-		return function (init) {
+		return function (initVal) {
 			var i = 0;
 			var end = breathe.resolveValue(iterations);
 			return whileLoop(copyObj({
@@ -642,7 +656,7 @@
 				body: function (pass) {
 					return body(i++, pass);
 				}
-			}, c))(init);
+			}, c))(initVal);
 		};
 	};
 	breathe.times = unwrap(timesLoop);
