@@ -184,7 +184,7 @@
 	// defining breathe
 
 	var breathe = {
-		version: '0.1.7-0.1.0'
+		version: '0.1.7-0.2.0'
 	};
 
 	var batchTime = 20;
@@ -275,6 +275,16 @@
 	};
 	doSomeWork();
 
+	var queueWork = function (work) {
+		var warmup = function () {
+			workQueue.push({work: work, cooldown: cooldown});
+		};
+		var cooldown = function () {
+			preWorkQueue.push(warmup);
+		};
+		warmup();
+	};
+
 	breathe.setBatchTime = function(time){
 		batchTime = time;
 		return breathe;
@@ -317,39 +327,9 @@
 		var _paused = false;
 		var pauseGate = null;
 		var _stopped = false;
+		var _currObj;
 		var pauseCallGate = null;
 		var stopCallGate = null;
-		var defaultStop = function () {
-			_stopped = true;
-			if (_paused && pauseGate) {
-				pauseGate.reject(STOP_MESSAGE);
-				return ImmediatePromise.resolve();
-			}
-			// add another event to the promise chain to trigger stopCallGate,
-			// in case if the promise chain is at the end
-			stopCallGate = breatheGate();
-			ret.then(promisePass);
-			return stopCallGate;
-		};
-		var defaultPause = function () {
-			if(_paused) {
-				return pauseCallGate;
-			}
-			_paused = true;
-			// add another event to the promise chain to trigger pauseCallGate,
-			// in case if the promise chain is at the end
-			pauseCallGate = breatheGate();
-			ret.then(promisePass); 
-			return pauseCallGate;
-		};
-		var defaultUnpause = function () {
-			_paused = false;
-			if(pauseGate){
-				pauseGate.resolve();
-				pauseGate = null;
-			}
-			return ImmediatePromise.resolve(true);
-		};
 		var handleGates = function (obj) {
 			if (_stopped) {
 				if (stopCallGate) {
@@ -370,7 +350,56 @@
 			}
 			return obj;
 		};
+
+		_promise = _promise.then(function(obj) {
+			return new ImmediatePromise(function (resolve, reject) {
+				queueWork(function (){
+					resolve(obj);
+				});
+			}).then(handleGates);
+		});
+
 		var ret = {
+			pause: function () {
+				if(_currObj && _currObj.then && _currObj.pause) {
+					return _currObj.pause();
+				}
+				if(_paused) {
+					return pauseCallGate;
+				}
+				_paused = true;
+				// add another event to the promise chain to trigger pauseCallGate,
+				// in case if the promise chain is at the end
+				pauseCallGate = breatheGate();
+				ret.then(promisePass); 
+				return pauseCallGate;
+			},
+			unpause: function () {
+				if(_currObj && _currObj.then && _currObj.unpause) {
+					return _currObj.unpause();
+				}
+				_paused = false;
+				if(pauseGate){
+					pauseGate.resolve();
+					pauseGate = null;
+				}
+				return ImmediatePromise.resolve(true);
+			},
+			stop: function () {
+				if(_currObj && _currObj.then && _currObj.stop) {
+					return _currObj.stop();
+				}
+				_stopped = true;
+				if (_paused && pauseGate) {
+					pauseGate.reject(STOP_MESSAGE);
+					return ImmediatePromise.resolve();
+				}
+				// add another event to the promise chain to trigger stopCallGate,
+				// in case if the promise chain is at the end
+				stopCallGate = breatheGate();
+				ret.then(promisePass);
+				return stopCallGate;
+			},
 			addMethod: function (name, fn) {
 				ret[name] = fn;
 				return ret;
@@ -387,13 +416,15 @@
 					.then(function (obj) {
 						return new ImmediatePromise(function (resolve, reject) {
 							var work = function () {
-								try {
-									var a = o(obj);
-									setMethods(a);
-									resolve(a);
-								} catch (e) {
-									reject(e);
-								}
+								ImmediatePromise.resolve().then(handleGates)
+								  .then(function () {
+										try {
+											_currObj = o(obj);
+											resolve(_currObj);
+										} catch (e) {
+											reject(e);
+										}
+								  }).then(handleGates);
 							};
 							var warmup = function() {
 								workQueue.push({work: work, cooldown: cooldown});
@@ -409,7 +440,7 @@
 							};
 							workQueue.push({work: work, cooldown: cooldown});
 						});
-					}, e || null);
+					}, e || null).then(handleGates);
 				return ret;
 			}
 		};
@@ -419,20 +450,6 @@
 			_promise.then(null, e);
 			return ret;
 		};
-		var setMethods = function (o) {
-			if(o && o.then){
-				// o is a promise
-				ret.stop = o.stop || defaultStop;
-				ret.pause = o.pause || defaultPause;
-				ret.unpause = o.unpause || defaultUnpause;
-			} else {
-				ret.stop = defaultStop;
-				ret.pause = defaultPause;
-				ret.unpause = defaultUnpause;
-			}
-			return ret;
-		};
-		setMethods();
 		return ret;
 	};
 	breathe.promise = pauseablePromise;
