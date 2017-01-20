@@ -184,7 +184,7 @@
 	// defining breathe
 
 	var breathe = {
-		version: '0.1.7-0.2.0'
+		version: '0.1.7-0.3.0'
 	};
 
 	var batchTime = 20;
@@ -194,6 +194,17 @@
 	 **********************/
 	var STOP_MESSAGE = 'Stopped';
 	breathe.STOP_MESSAGE = STOP_MESSAGE;
+	var STATE_STARTING = 1;
+	var STATE_RUNNING = 2;
+	var STATE_PAUSING = 3;
+	var STATE_PAUSED = 4;
+	var STATE_UNPAUSING = 5;
+	var STATE_STOPPING = 6;
+	var STATE_STOPPED = 7;
+	var STATE_FINISHED = 7;
+
+			// [starting,] running, pausing, paused, unpausing,
+			// stopping, stopped, and finished
 
 	/**********************
 	 * Utility Functions
@@ -323,30 +334,126 @@
 	// .unpause() if they're implemented by a returned promise.
 	var pauseablePromise = function (init, config) {
 		config = config || {};
+		var _state = STATE_STARTING;
 		var _promise = ImmediatePromise.resolve(init);
-		var _paused = false;
 		var pauseGate = null;
-		var _stopped = false;
 		var _currObj;
 		var pauseCallGate = null;
 		var stopCallGate = null;
+		var _pauser;
+
+		var defaultPause = function () {
+			if (_state === STATE_PAUSED) {
+				return ImmediatePromise.resolve();
+			}
+			if(_state === STATE_PAUSING) {
+				return pauseCallGate;
+			}
+			_state = STATE_PAUSING;
+
+			if(_currObj && _currObj.then && _currObj.pause) {
+				_pauser = _currObj;
+				pauseCallGate = _pauser.pause();
+				if (pauseCallGate && pauseCallGate.then) {
+					pauseCallGate = pauseCallGate.then(function(){
+						_state = STATE_PAUSED;
+					});
+				} else {
+					pauseCallGate = null;
+				}
+				return pauseCallGate;
+			}
+			// Add another event to the promise chain to trigger pauseCallGate,
+			// in case if the promise chain is at the end
+			// TODO: Check if this is necessary.
+			pauseCallGate = breatheGate();
+			ret.then(promisePass); 
+			return pauseCallGate;
+		};
+		var defaultUnpause = function () {
+			var gate;
+			_state = STATE_RUNNING;
+			// TODO: look into why it seems this needs to be called if
+			// _pauser.unpause is called (there shouldn't be a pause gate?)			
+			if(pauseGate){
+				gate = pauseGate;
+				pauseGate = null;
+				gate.resolve();
+			}
+			if(_pauser) {
+				gate = _pauser.unpause();
+				_pauser = null;
+				return gate;
+			}
+			return ImmediatePromise.resolve(true);
+		};
+
+		var defaultStop = function () {
+			if (_state === STATE_STOPPED) {
+				return ImmediatePromise.resolve(true);
+			}
+			if(_currObj && _currObj.then && _currObj.stop) {
+				_state = STATE_STOPPING;
+				stopCallGate = _currObj.stop();
+				if (stopCallGate && stopCallGate.then) {
+					stopCallGate = stopCallGate.then(function(){
+						// TODO: check if this is necessary, 
+						// since it'll be handled in handleGates
+						_state = STATE_STOPPED;
+					});
+				} else {
+					stopCallGate = ImmediatePromise.resolve(true);
+				}
+				return stopCallGate;
+			}
+			if (_state === STATE_PAUSED && pauseGate) {
+				_state = STATE_STOPPED;
+				pauseGate.reject(STOP_MESSAGE);
+				return ImmediatePromise.resolve();
+			} else if (_state === STATE_PAUSING && pauseCallGate) {
+				_state = STATE_STOPPING;
+				return pauseCallGate.then(function() {
+					if (pauseGate) {
+						pauseGate.reject(STOP_MESSAGE);
+					}
+					_state = STATE_STOPPED;
+				});
+			} else {
+				_state = STATE_STOPPING;
+			}
+			// Add another event to the promise chain to trigger stopCallGate,
+			// in case if the promise chain is at the end.
+			// TODO: Check if this is necessary.
+			stopCallGate = breatheGate();
+			ret.then(promisePass);
+			return stopCallGate;
+		};
+
 		var handleGates = function (obj) {
-			if (_stopped) {
+			var gate;
+			if (_state === STATE_STOPPING) {
 				if (stopCallGate) {
 					stopCallGate.resolve();
 					stopCallGate = null;
 				}
-				return ImmediatePromise.reject(STOP_MESSAGE);
-			}
-			if (_paused) {
+				_state = STATE_STOPPED;
+				return ImmediatePromise.reject(STOP_MESSAGE);				
+			} else if (_state === STATE_STOPPED) {
+				return ImmediatePromise.reject(STOP_MESSAGE);				
+			} else if (_state === STATE_PAUSING) {
 				if (pauseCallGate) {
-					pauseCallGate.resolve();
+					gate = pauseCallGate;
 					pauseCallGate = null;
+					gate.resolve();
 				}
+				_state = STATE_PAUSED;
 				pauseGate = breatheGate();
 				return pauseGate.then(function () {
+					_state = STATE_RUNNING;
 					return obj;
 				});
+			} else if (_state === STATE_PAUSED) {
+				return pauseGate;
 			}
 			return obj;
 		};
@@ -360,46 +467,15 @@
 		});
 
 		var ret = {
-			pause: function () {
-				if(_currObj && _currObj.then && _currObj.pause) {
-					return _currObj.pause();
-				}
-				if(_paused) {
-					return pauseCallGate;
-				}
-				_paused = true;
-				// add another event to the promise chain to trigger pauseCallGate,
-				// in case if the promise chain is at the end
-				pauseCallGate = breatheGate();
-				ret.then(promisePass); 
-				return pauseCallGate;
+			resetMethods: function () {
+				// in case if the methods get ovewritten
+				ret.pause = defaultPause;
+				ret.unpause = defaultUnpause;
+				ret.stop = defaultStop
 			},
-			unpause: function () {
-				if(_currObj && _currObj.then && _currObj.unpause) {
-					return _currObj.unpause();
-				}
-				_paused = false;
-				if(pauseGate){
-					pauseGate.resolve();
-					pauseGate = null;
-				}
-				return ImmediatePromise.resolve(true);
-			},
-			stop: function () {
-				if(_currObj && _currObj.then && _currObj.stop) {
-					return _currObj.stop();
-				}
-				_stopped = true;
-				if (_paused && pauseGate) {
-					pauseGate.reject(STOP_MESSAGE);
-					return ImmediatePromise.resolve();
-				}
-				// add another event to the promise chain to trigger stopCallGate,
-				// in case if the promise chain is at the end
-				stopCallGate = breatheGate();
-				ret.then(promisePass);
-				return stopCallGate;
-			},
+			pause: defaultPause,
+			unpause: defaultUnpause,
+			stop: defaultStop,
 			addMethod: function (name, fn) {
 				ret[name] = fn;
 				return ret;
@@ -450,6 +526,7 @@
 			_promise.then(null, e);
 			return ret;
 		};
+		_state = STATE_RUNNING;
 		return ret;
 	};
 	breathe.promise = pauseablePromise;
@@ -505,24 +582,18 @@
 		return function (initVal) {
 			var condition = config.condition;
 			var body = config.body;
-			var ret = config.ret;
 			var target = config.chunkTime || 20;
 			var chunkTimeout = config.chunkTimeout || 0;
 			// value to pass to the loop body and the value returned from the body
 			var b = initVal;
-			// TODO: since there can't be simultaneous states, may want to define states:
-			// [starting,] running, pausing, paused, unpausing,
-			// stopping, stopped, and finished
-			var stopped = false; // for stoppable loops
-			var paused = false;
-			var finished = false;
+			var _state;
 			var pauseGate = null;
 			var pauseCallGate = null;
 			var stopCallGate = null;
 			var cancelID = null;
 			var batchIteration = 0;
 			var throttle = (config && config.throttle ? config.throttle : 0);
-			return breathe.promise(new ImmediatePromise(function (resolve, reject) {
+			var retLoop = breathe.promise(new ImmediatePromise(function (resolve, reject) {
 				var warmup = function() {
 					workQueue.push({work: work, cooldown: cooldown});
 					batchIteration = 0;
@@ -541,21 +612,20 @@
 				};
 				var work = function () {
 					if (stopCallGate) {
+						_state = STATE_STOPPED;
 						reject(STOP_MESSAGE);
-						stopped = true;
 						stopCallGate.resolve();
 						stopCallGate = null;
-						finished = true;
 						return;
 					}
 					if (pauseCallGate) {
+						_state = STATE_PAUSED;
 						pauseGate = breatheGate().then(function () {
 							pauseGate = null;
 							reenterWork();
 						}, function (e) {
 							reject(e);							
 						});
-						paused = true;
 						pauseCallGate.resolve();
 						pauseCallGate = null;
 						return;
@@ -567,8 +637,8 @@
 							return;
 						}
 						if (!condition()) {
-							finished = true;
-							resolve(ret ? ret() : b);
+							_state = STATE_FINISHED;
+							resolve(b);
 							return;
 						}
 						b = body(b); // run body and store the result to b
@@ -579,7 +649,6 @@
 								// can alternatively call reenterWork(), but that skips the current batch
 								workQueue.push({work: work, cooldown: cooldown});
 							}, function (e) {
-								finished = true;
 								reject(e); // pass the error up the chain
 							});
 							return;
@@ -589,16 +658,18 @@
 					} catch (e) {
 						reject(e);
 					}
-				}
+				};
 				warmup();
 			})).addMethod('stop', function () {
 				var ret;
+				var prevState = _state;
 				if(b && b.then && b.stop){
 					ret = b.stop();
 				} else {
-					stopped = true;
-				}
-				if (paused && pauseGate) {
+					_state = STATE_STOPPING;
+				}					
+				if (prevState === STATE_PAUSED && pauseGate) {
+					_state = STATE_STOPPED;
 					pauseGate.reject(STOP_MESSAGE);
 					pauseGate = null;
 					if (pauseCallGate) {
@@ -613,30 +684,28 @@
 				if (b && b.then && b.pause) {
 					return b.pause();
 				} else {
-					if (paused) {
-						return pauseCallGate || ImmediatePromise.resolve();
+					_state = STATE_PAUSING;
+					if(!pauseCallGate) {
+						pauseCallGate = breatheGate();
 					}
-					if(pauseCallGate) {
-						return pauseCallGate;
-					}
-					paused = true;
-					pauseCallGate = breatheGate();
 					return pauseCallGate;
 				}
 			}).addMethod('unpause', function () {
 				if (b && b.then && b.unpause) {
 					return b.unpause();
 				} else {
-					paused = false;
+					_state = STATE_RUNNING;
 					if (pauseGate) {
 						pauseGate.resolve();
 						pauseGate = null;
 					}
 					return ImmediatePromise.resolve();
 				}
-			}).then(function () {
-				// use an empty .then to reset pause, unpause, and stop
+			}).then(function (obj) {
+				retLoop.resetMethods();
+				return obj;
 			});
+			return retLoop;
 		};
 	};
 
@@ -649,6 +718,10 @@
 				}, timeout);
 			});
 		};
+	};
+
+	breathe.stop = function (p) {
+		return breathe.promise(p && p.then && p.stop);
 	};
 	
 	var timesLoop = function (iterations, body, config) {
