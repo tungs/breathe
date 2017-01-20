@@ -184,7 +184,7 @@
 	// defining breathe
 
 	var breathe = {
-		version: '0.1.7-0.3.0'
+		version: '0.1.7-0.3.1'
 	};
 
 	var batchTime = 20;
@@ -721,7 +721,8 @@
 	};
 
 	breathe.stop = function (p) {
-		return breathe.promise(p && p.then && p.stop);
+
+		return breathe.promise(p && p.then && p.stop && p.stop());
 	};
 	
 	var timesLoop = function (iterations, body, config) {
