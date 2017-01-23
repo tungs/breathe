@@ -184,7 +184,7 @@
 	// defining breathe
 
 	var breathe = {
-		version: '0.1.7-0.3.1'
+		version: '0.1.7'
 	};
 
 	var batchTime = 20;
