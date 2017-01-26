@@ -1,20 +1,20 @@
 /* Copyright (c) Steve Tung All Rights Reserved */
 
-(function (root, factory) {
+(function(root, factory) {
 	"use strict";
 	var moduleName = 'breathe';
 	// TODO: detect node.js/web worker environment and ensure that 
 	//       requestAnimationFrame is not used
-	if(typeof define === 'function' && define.amd){
-		define([], function(){
+	if (typeof define === 'function' && define.amd) {
+		define([], function() {
 			return (root[moduleName] = factory(root));
 		});
-	} else if (typeof module === 'object' && module.exports){
+	} else if (typeof module === 'object' && module.exports) {
 		module.exports = (root[moduleName] = factory(root));
 	} else {
 		root[moduleName] = factory(root);
 	}
-}(this, function(exports){
+}(this, function(exports) {
 	"use strict";
 
 	// defining ImmediatePromise
@@ -23,68 +23,68 @@
 		resolved: 2,
 		rejected: 3
 	};
-	var isFunction = function (f) {
+	var isFunction = function(f) {
 		return typeof f === 'function';
 	};
-	var isObject = function (o) {
+	var isObject = function(o) {
 		return typeof o === 'object';
 	};
-	var ImmediatePromise = function (fn) {
+	var ImmediatePromise = function(fn) {
 		var that = this;
 		this.state = promiseStates.pending;
 		this.immediate = ImmediatePromise.runImmediately;
-		
+
 		this._pendingThen = [];
 		this._pendingCatch = [];
 
-		this.resolve = function (value) {
-			if(that.state !== promiseStates.pending) {
+		this.resolve = function(value) {
+			if (that.state !== promiseStates.pending) {
 				return;
 			}
 			that.state = promiseStates.resolved;
 			that._value = value;
-			that._runFn(function () {
+			that._runFn(function() {
 				that._clearResolvedQueue();
 			});
 		};
-		
-		this.reject = function (reason) {
-			if(that.state !== promiseStates.pending) {
+
+		this.reject = function(reason) {
+			if (that.state !== promiseStates.pending) {
 				return;
 			}
 			that.state = promiseStates.rejected;
 			that._reason = reason;
-			that._runFn(function () {
+			that._runFn(function() {
 				that._clearRejectedQueue();
 			});
 		};
-		
+
 		fn.call(this, this.resolve, this.reject);
 	};
 
 
-	var _resolveValueOrPromise = function (that, d, resolve, reject){
+	var _resolveValueOrPromise = function(that, d, resolve, reject) {
 		var then;
 		var thenableCalled = false;
 		try {
-			if(d===that){
+			if (d === that) {
 				reject(new TypeError("Recursive Promise Detected"));
 				return;
 			}
 			then = d && d.then;
-			if( (isObject(d) || isFunction(d)) && isFunction(then)) {
-				then.call(d, function(val){
-					if(thenableCalled) {
+			if ((isObject(d) || isFunction(d)) && isFunction(then)) {
+				then.call(d, function(val) {
+					if (thenableCalled) {
 						return;
 					}
-					if(d===val){
+					if (d === val) {
 						reject(new TypeError("Recursive Promise Detected"));
 						return;
 					}
 					thenableCalled = true;
 					_resolveValueOrPromise(that, val, resolve, reject);
-				}, function(reason){
-					if(thenableCalled){
+				}, function(reason) {
+					if (thenableCalled) {
 						return;
 					}
 					thenableCalled = true;
@@ -94,89 +94,93 @@
 				resolve(d);
 			}
 		} catch (e) {
-			if(!thenableCalled) {
+			if (!thenableCalled) {
 				reject(e);
 			}
 		}
 	};
 
 	ImmediatePromise.prototype = {
-		_clearResolvedQueue: function () {
+		_clearResolvedQueue: function() {
 			while (this._pendingThen.length) {
 				this._pendingThen.shift()(this._value);
 			}
-		}, _clearRejectedQueue: function () {
-			while (this._pendingCatch.length){
+		},
+		_clearRejectedQueue: function() {
+			while (this._pendingCatch.length) {
 				this._pendingCatch.shift()(this._reason);
 			}
-		}, _runFn: function(fn){
+		},
+		_runFn: function(fn) {
 			if (this.immediate) {
 				fn();
 			} else {
 				setTimeout(fn, 0);
 			}
-		}, then: function (onResolved, onRejected) {
+		},
+		then: function(onResolved, onRejected) {
 			var that = this;
 			var p = {};
-			p = new ImmediatePromise(function(resolve, reject){
-				var resolveValue = (that.state === promiseStates.rejected) ? null : 
-				function(value){						
-					if(isFunction(onResolved)){
-						try {
-							_resolveValueOrPromise(p, onResolved(value), resolve, reject);
-						} catch (e) {
-							reject (e);
+			p = new ImmediatePromise(function(resolve, reject) {
+				var resolveValue = (that.state === promiseStates.rejected) ? null :
+					function(value) {
+						if (isFunction(onResolved)) {
+							try {
+								_resolveValueOrPromise(p, onResolved(value), resolve, reject);
+							} catch (e) {
+								reject(e);
+							}
+						} else {
+							resolve(value);
 						}
-					} else {
-						resolve(value);
-					}
-				};
+					};
 
-				var catchReason = (that.state === promiseStates.resolved) ? null : 
-				function(reason){
-					if(isFunction(onRejected)){
-						try {
-							_resolveValueOrPromise(p, onRejected(reason), resolve, reject);
-						} catch (e) {
-							reject (e);
+				var catchReason = (that.state === promiseStates.resolved) ? null :
+					function(reason) {
+						if (isFunction(onRejected)) {
+							try {
+								_resolveValueOrPromise(p, onRejected(reason), resolve, reject);
+							} catch (e) {
+								reject(e);
+							}
+						} else {
+							reject(reason);
 						}
-					} else {
-						reject(reason);
-					}
-				};
-				
+					};
+
 				that._pendingThen.push(resolveValue);
 				that._pendingCatch.push(catchReason);
 				if (that.state === promiseStates.resolved) {
-					that._runFn(function(){
+					that._runFn(function() {
 						that._clearResolvedQueue();
 					})
 				} else if (that.state === promiseStates.rejected) {
-					that._runFn(function(){
+					that._runFn(function() {
 						that._clearRejectedQueue();
 					})
 				}
 			});
 			return p;
-		}, 'catch': function (onRejected) {
+		},
+		'catch': function(onRejected) {
 			this.then(null, onRejected);
 		}
-	}	
+	}
 	ImmediatePromise.resolve = function(d) {
-		var p = new ImmediatePromise(function(resolve, reject){
+		var p = new ImmediatePromise(function(resolve, reject) {
 			_resolveValueOrPromise({}, d, resolve, reject);
 		});
 		return p;
 	};
-	
-	ImmediatePromise.reject = function(e){
-		return new ImmediatePromise(function(resolve, reject){
+
+	ImmediatePromise.reject = function(e) {
+		return new ImmediatePromise(function(resolve, reject) {
 			reject(e);
 		});
 	};
 
 	ImmediatePromise.runImmediately = true;
-	
+
 	ImmediatePromise.states = promiseStates;
 
 	ImmediatePromise.version = '0.1.0';
@@ -184,7 +188,7 @@
 	// defining breathe
 
 	var breathe = {
-		version: '0.1.7'
+		version: '0.1.8-0.1.0'
 	};
 
 	var batchTime = 20;
@@ -203,31 +207,31 @@
 	var STATE_STOPPED = 7;
 	var STATE_FINISHED = 7;
 
-			// [starting,] running, pausing, paused, unpausing,
-			// stopping, stopped, and finished
+	// [starting,] running, pausing, paused, unpausing,
+	// stopping, stopped, and finished
 
 	/**********************
 	 * Utility Functions
 	 **********************/
-	var timer = (typeof performance !== 'undefined' && performance.now ? 
-	performance : { 
-		now: function () {
-			return new Date().getTime();
-		}
-	});
-	
-	var resolveValue = function (v) {
+	var timer = (typeof performance !== 'undefined' && performance.now ?
+		performance : {
+			now: function() {
+				return new Date().getTime();
+			}
+		});
+
+	var resolveValue = function(v) {
 		return (typeof v === 'function' ? v() : v);
 	};
 	breathe.resolveValue = resolveValue;
-	
-	var unwrap = function (fn) {
-		return function () {
+
+	var unwrap = function(fn) {
+		return function() {
 			return fn.apply(this, arguments)();
 		};
 	};
 
-	var copyObj = function (from, to) {
+	var copyObj = function(from, to) {
 		var key;
 		for (key in from) {
 			if (from.hasOwnProperty(key)) {
@@ -237,13 +241,13 @@
 		return to;
 	};
 
-	var promisePass = function(a){
+	var promisePass = function(a) {
 		return a;
 	};
 
 	/**********************
-	* Main loop
-	***********************/
+	 * Main loop
+	 ***********************/
 	var preWorkQueue = [];
 	var workQueue = [];
 	var postWorkQueue = [];
@@ -261,21 +265,21 @@
 
 		// The workQueue is the main queue for running work. It sustains a loop by
 		// the .work() function adding more items to the workQueue
-		for (ind = 0; ind < workQueue.length 
-			&& timer.now() - start < batchTime; ind++) {
+		for (ind = 0; ind < workQueue.length &&
+			timer.now() - start < batchTime; ind++) {
 			workQueue[ind].work();
 		}
 
 		// If a queue is not completed within a batch, run .cooldown() for the 
 		// remaining items. It usually adds work to the preWorkQueue 
 		// and calls event handlers.
-		for (ind = ind; ind<workQueue.length; ind++) {
+		for (ind = ind; ind < workQueue.length; ind++) {
 			workQueue[ind].cooldown();
 		}
 		workQueue = [];
 
 
-		for (ind = 0; ind<postWorkQueue.length; ind++) {
+		for (ind = 0; ind < postWorkQueue.length; ind++) {
 			postWorkQueue[ind]();
 		}
 		postWorkQueue = [];
@@ -286,21 +290,24 @@
 	};
 	doSomeWork();
 
-	var queueWork = function (work) {
-		var warmup = function () {
-			workQueue.push({work: work, cooldown: cooldown});
+	var queueWork = function(work) {
+		var warmup = function() {
+			workQueue.push({
+				work: work,
+				cooldown: cooldown
+			});
 		};
-		var cooldown = function () {
+		var cooldown = function() {
 			preWorkQueue.push(warmup);
 		};
 		warmup();
 	};
 
-	breathe.setBatchTime = function(time){
+	breathe.setBatchTime = function(time) {
 		batchTime = time;
 		return breathe;
 	};
-	
+
 	/**********************
 	 * Classes
 	 **********************/
@@ -310,15 +317,15 @@
 	// returns itself when invoking those functions instead of a new Promise. 
 	// This preserves methods attached to the object (like .resolve() and 
 	//.release() in breatheGate) when creating a chain.
-	var basicPromise = function (init) {
+	var basicPromise = function(init) {
 		var _promise = ImmediatePromise.resolve(init);
 		var ret = {
-			then: function (o,e) {
+			then: function(o, e) {
 				_promise = _promise.then(o, e);
 				return ret;
 			}
 		};
-		ret['catch'] = function (e) { 
+		ret['catch'] = function(e) {
 			// ret['catch'] is used instead of ret.catch, 
 			// for IE <9 compatibility (with Promise polyfills)
 			_promise = _promise.then(null, e);
@@ -332,7 +339,7 @@
 	// promise chains. Additionally, the .then() function adds checks for 
 	// stopping and pausing. It then overwrites .stop(), .pause(), and 
 	// .unpause() if they're implemented by a returned promise.
-	var pauseablePromise = function (init, config) {
+	var pauseablePromise = function(init, config) {
 		config = config || {};
 		var _state = STATE_STARTING;
 		var _promise = ImmediatePromise.resolve(init);
@@ -342,20 +349,20 @@
 		var stopCallGate = null;
 		var _pauser;
 
-		var defaultPause = function () {
+		var defaultPause = function() {
 			if (_state === STATE_PAUSED) {
 				return ImmediatePromise.resolve();
 			}
-			if(_state === STATE_PAUSING) {
+			if (_state === STATE_PAUSING) {
 				return pauseCallGate;
 			}
 			_state = STATE_PAUSING;
 
-			if(_currObj && _currObj.then && _currObj.pause) {
+			if (_currObj && _currObj.then && _currObj.pause) {
 				_pauser = _currObj;
 				pauseCallGate = _pauser.pause();
 				if (pauseCallGate && pauseCallGate.then) {
-					pauseCallGate = pauseCallGate.then(function(){
+					pauseCallGate = pauseCallGate.then(function() {
 						_state = STATE_PAUSED;
 					});
 				} else {
@@ -367,20 +374,20 @@
 			// in case if the promise chain is at the end
 			// TODO: Check if this is necessary.
 			pauseCallGate = breatheGate();
-			ret.then(promisePass); 
+			ret.then(promisePass);
 			return pauseCallGate;
 		};
-		var defaultUnpause = function () {
+		var defaultUnpause = function() {
 			var gate;
 			_state = STATE_RUNNING;
 			// TODO: look into why it seems this needs to be called if
 			// _pauser.unpause is called (there shouldn't be a pause gate?)			
-			if(pauseGate){
+			if (pauseGate) {
 				gate = pauseGate;
 				pauseGate = null;
 				gate.resolve();
 			}
-			if(_pauser) {
+			if (_pauser) {
 				gate = _pauser.unpause();
 				_pauser = null;
 				return gate;
@@ -388,15 +395,15 @@
 			return ImmediatePromise.resolve(true);
 		};
 
-		var defaultStop = function () {
+		var defaultStop = function() {
 			if (_state === STATE_STOPPED) {
 				return ImmediatePromise.resolve(true);
 			}
-			if(_currObj && _currObj.then && _currObj.stop) {
+			if (_currObj && _currObj.then && _currObj.stop) {
 				_state = STATE_STOPPING;
 				stopCallGate = _currObj.stop();
 				if (stopCallGate && stopCallGate.then) {
-					stopCallGate = stopCallGate.then(function(){
+					stopCallGate = stopCallGate.then(function() {
 						// TODO: check if this is necessary, 
 						// since it'll be handled in handleGates
 						_state = STATE_STOPPED;
@@ -429,7 +436,7 @@
 			return stopCallGate;
 		};
 
-		var handleGates = function (obj) {
+		var handleGates = function(obj) {
 			var gate;
 			if (_state === STATE_STOPPING) {
 				if (stopCallGate) {
@@ -437,9 +444,9 @@
 					stopCallGate = null;
 				}
 				_state = STATE_STOPPED;
-				return ImmediatePromise.reject(STOP_MESSAGE);				
+				return ImmediatePromise.reject(STOP_MESSAGE);
 			} else if (_state === STATE_STOPPED) {
-				return ImmediatePromise.reject(STOP_MESSAGE);				
+				return ImmediatePromise.reject(STOP_MESSAGE);
 			} else if (_state === STATE_PAUSING) {
 				if (pauseCallGate) {
 					gate = pauseCallGate;
@@ -448,7 +455,7 @@
 				}
 				_state = STATE_PAUSED;
 				pauseGate = breatheGate();
-				return pauseGate.then(function () {
+				return pauseGate.then(function() {
 					_state = STATE_RUNNING;
 					return obj;
 				});
@@ -459,15 +466,15 @@
 		};
 
 		_promise = _promise.then(function(obj) {
-			return new ImmediatePromise(function (resolve, reject) {
-				queueWork(function (){
+			return new ImmediatePromise(function(resolve, reject) {
+				queueWork(function() {
 					resolve(obj);
 				});
 			}).then(handleGates);
 		});
 
 		var ret = {
-			resetMethods: function () {
+			resetMethods: function() {
 				// in case if the methods get ovewritten
 				ret.pause = defaultPause;
 				ret.unpause = defaultUnpause;
@@ -476,34 +483,37 @@
 			pause: defaultPause,
 			unpause: defaultUnpause,
 			stop: defaultStop,
-			addMethod: function (name, fn) {
+			addMethod: function(name, fn) {
 				ret[name] = fn;
 				return ret;
 			},
-			addMethods: function (objs) {
+			addMethods: function(objs) {
 				copyObj(objs, ret);
 				return ret;
 			},
-			then: function (o, e) {
+			then: function(o, e) {
 				if (!o) {
 					return ret['catch'](e);
 				}
 				_promise = _promise.then(handleGates)
-					.then(function (obj) {
-						return new ImmediatePromise(function (resolve, reject) {
-							var work = function () {
+					.then(function(obj) {
+						return new ImmediatePromise(function(resolve, reject) {
+							var work = function() {
 								ImmediatePromise.resolve().then(handleGates)
-								  .then(function () {
+									.then(function() {
 										try {
 											_currObj = o(obj);
 											resolve(_currObj);
 										} catch (e) {
 											reject(e);
 										}
-								  }).then(handleGates);
+									});
 							};
 							var warmup = function() {
-								workQueue.push({work: work, cooldown: cooldown});
+								workQueue.push({
+									work: work,
+									cooldown: cooldown
+								});
 								if (config.onBeginBatch) {
 									config.onBeginBatch();
 								}
@@ -514,13 +524,16 @@
 									config.onEndBatch();
 								}
 							};
-							workQueue.push({work: work, cooldown: cooldown});
+							workQueue.push({
+								work: work,
+								cooldown: cooldown
+							});
 						});
 					}, e || null).then(handleGates);
 				return ret;
 			}
 		};
-		ret['catch'] = function (e) {
+		ret['catch'] = function(e) {
 			// ret['catch'] is used instead of ret.catch, for IE <9 
 			// compatibility (with Promise polyfills)
 			_promise.then(null, e);
@@ -531,19 +544,19 @@
 	};
 	breathe.promise = pauseablePromise;
 
-	breathe.start = function (init) {
+	breathe.start = function(init) {
 		return breathe.promise(init);
 	};
 
 	breathe.next = {};
-	
+
 	// breatheGate is a basicPromise that doesn't resolve or reject until 
 	// explicitly called via promiseObj.resolve() or promiseObj.reject(). Used
 	// for unpausing and callbacks.
-	var breatheGate = function () {
+	var breatheGate = function() {
 		var resolveCall;
 		var rejectCall;
-		var ret = basicPromise(new ImmediatePromise(function (resolve, reject) {
+		var ret = basicPromise(new ImmediatePromise(function(resolve, reject) {
 			resolveCall = resolve;
 			rejectCall = reject;
 		}));
@@ -552,34 +565,34 @@
 		return ret;
 	};
 	breathe.gate = breatheGate;
-	
-	breathe.setTimeout = function (t) {
+
+	breathe.setTimeout = function(t) {
 		t = t || 0;
 		return {
-			timeout: function (fn) {
+			timeout: function(fn) {
 				return setTimeout(fn, t);
 			},
-			cancel: function (a) {
+			cancel: function(a) {
 				return clearTimeout(a);
 			}
 		};
 	};
 	copyObj(breathe.setTimeout(), breathe.setTimeout);
 
-	breathe.requestAnimationFrame = function () {
+	breathe.requestAnimationFrame = function() {
 		return {
-			timeout: function (fn) {
+			timeout: function(fn) {
 				return requestAnimationFrame(fn);
 			},
-			cancel: function (a) {
+			cancel: function(a) {
 				return cancelAnimationFrame(a);
 			}
 		};
 	};
 	copyObj(breathe.requestAnimationFrame(), breathe.requestAnimationFrame);
 
-	var generalLoop = function (config) {
-		return function (initVal) {
+	var generalLoop = function(config) {
+		return function(initVal) {
 			var condition = config.condition;
 			var body = config.body;
 			var target = config.chunkTime || 20;
@@ -593,9 +606,12 @@
 			var cancelID = null;
 			var batchIteration = 0;
 			var throttle = (config && config.throttle ? config.throttle : 0);
-			var retLoop = breathe.promise(new ImmediatePromise(function (resolve, reject) {
+			var retLoop = breathe.promise(new ImmediatePromise(function(resolve, reject) {
 				var warmup = function() {
-					workQueue.push({work: work, cooldown: cooldown});
+					workQueue.push({
+						work: work,
+						cooldown: cooldown
+					});
 					batchIteration = 0;
 					if (config.onBeginBatch) {
 						config.onBeginBatch();
@@ -610,7 +626,7 @@
 						config.onEndBatch();
 					}
 				};
-				var work = function () {
+				var work = function() {
 					if (stopCallGate) {
 						_state = STATE_STOPPED;
 						reject(STOP_MESSAGE);
@@ -620,11 +636,11 @@
 					}
 					if (pauseCallGate) {
 						_state = STATE_PAUSED;
-						pauseGate = breatheGate().then(function () {
+						pauseGate = breatheGate().then(function() {
 							pauseGate = null;
 							reenterWork();
-						}, function (e) {
-							reject(e);							
+						}, function(e) {
+							reject(e);
 						});
 						pauseCallGate.resolve();
 						pauseCallGate = null;
@@ -644,30 +660,36 @@
 						b = body(b); // run body and store the result to b
 						if (b && b.then) {
 							// if body() returned a promise
-							b.then(function (arg) {
+							b.then(function(arg) {
 								b = arg;
 								// can alternatively call reenterWork(), but that skips the current batch
-								workQueue.push({work: work, cooldown: cooldown});
-							}, function (e) {
+								workQueue.push({
+									work: work,
+									cooldown: cooldown
+								});
+							}, function(e) {
 								reject(e); // pass the error up the chain
 							});
 							return;
 						} else {
-							workQueue.push({work: work, cooldown: cooldown});
+							workQueue.push({
+								work: work,
+								cooldown: cooldown
+							});
 						}
 					} catch (e) {
 						reject(e);
 					}
 				};
 				warmup();
-			})).addMethod('stop', function () {
+			})).addMethod('stop', function() {
 				var ret;
 				var prevState = _state;
-				if(b && b.then && b.stop){
+				if (b && b.then && b.stop) {
 					ret = b.stop();
 				} else {
 					_state = STATE_STOPPING;
-				}					
+				}
 				if (prevState === STATE_PAUSED && pauseGate) {
 					_state = STATE_STOPPED;
 					pauseGate.reject(STOP_MESSAGE);
@@ -680,17 +702,17 @@
 				}
 				stopCallGate = breatheGate();
 				return ret || stopCallGate;
-			}).addMethod('pause', function () {
+			}).addMethod('pause', function() {
 				if (b && b.then && b.pause) {
 					return b.pause();
 				} else {
 					_state = STATE_PAUSING;
-					if(!pauseCallGate) {
+					if (!pauseCallGate) {
 						pauseCallGate = breatheGate();
 					}
 					return pauseCallGate;
 				}
-			}).addMethod('unpause', function () {
+			}).addMethod('unpause', function() {
 				if (b && b.then && b.unpause) {
 					return b.unpause();
 				} else {
@@ -701,7 +723,7 @@
 					}
 					return ImmediatePromise.resolve();
 				}
-			}).then(function (obj) {
+			}).then(function(obj) {
 				retLoop.resetMethods();
 				return obj;
 			});
@@ -709,23 +731,23 @@
 		};
 	};
 
-	breathe.promise.timeout = function (timeout) {
+	breathe.promise.timeout = function(timeout) {
 		timeout = timeout || 0;
-		return function(arg){
-			return new ImmediatePromise(function (resolve, reject) {
-				setTimeout(function () {
+		return function(arg) {
+			return new ImmediatePromise(function(resolve, reject) {
+				setTimeout(function() {
 					resolve(arg);
 				}, timeout);
 			});
 		};
 	};
 
-	breathe.stop = function (p) {
+	breathe.stop = function(p) {
 
 		return breathe.promise(p && p.then && p.stop && p.stop());
 	};
-	
-	var timesLoop = function (iterations, body, config) {
+
+	var timesLoop = function(iterations, body, config) {
 		if (arguments.length === 1) {
 			config = arguments[0];
 			iterations = null;
@@ -737,14 +759,14 @@
 		iterations = config.iterations || iterations;
 		var c = copyObj(config, {});
 
-		return function (initVal) {
+		return function(initVal) {
 			var i = 0;
 			var end = breathe.resolveValue(iterations);
 			return whileLoop(copyObj({
-				condition: function () {
+				condition: function() {
 					return i < end;
 				},
-				body: function (pass) {
+				body: function(pass) {
 					return body(i++, pass);
 				}
 			}, c))(initVal);
@@ -753,7 +775,7 @@
 	breathe.times = unwrap(timesLoop);
 	breathe.next.times = timesLoop;
 
-	var whileLoop = function (condition, body, config) {
+	var whileLoop = function(condition, body, config) {
 		if (arguments.length === 1) {
 			config = arguments[0];
 			body = null;
@@ -769,6 +791,6 @@
 	};
 	breathe.loop = unwrap(whileLoop);
 	breathe.next.loop = whileLoop;
-	
+
 	return breathe;
 }));
