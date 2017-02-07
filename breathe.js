@@ -23,68 +23,73 @@
 		resolved: 2,
 		rejected: 3
 	};
-	var isFunction = function(f) {
+	var isFunction = function (f) {
 		return typeof f === 'function';
 	};
-	var isObject = function(o) {
+	var isObject = function (o) {
 		return typeof o === 'object';
 	};
-	var ImmediatePromise = function(fn) {
+	var ImmediatePromise = function (fn) {
 		var that = this;
 		this.state = promiseStates.pending;
 		this.immediate = ImmediatePromise.runImmediately;
-
+		
 		this._pendingThen = [];
 		this._pendingCatch = [];
 
-		this.resolve = function(value) {
-			if (that.state !== promiseStates.pending) {
+		this.resolve = function (value) {
+			if(that.state !== promiseStates.pending) {
 				return;
 			}
 			that.state = promiseStates.resolved;
 			that._value = value;
-			that._runFn(function() {
+			that._runFn(function () {
 				that._clearResolvedQueue();
 			});
 		};
-
-		this.reject = function(reason) {
-			if (that.state !== promiseStates.pending) {
+		
+		this.reject = function (reason) {
+			if(that.state !== promiseStates.pending) {
 				return;
 			}
 			that.state = promiseStates.rejected;
 			that._reason = reason;
-			that._runFn(function() {
+			if (!that._pendingCatch.length && ImmediatePromise.loggingErrors) {
+				that._loggingErrorTimeout = setTimeout(function () {
+					console.warn(that._reason);
+				}, ImmediatePromise.loggingErrorTimeout);
+			}
+			that._runFn(function () {
 				that._clearRejectedQueue();
 			});
 		};
-
+		
 		fn.call(this, this.resolve, this.reject);
 	};
 
 
-	var _resolveValueOrPromise = function(that, d, resolve, reject) {
+	var _resolveValueOrPromise = function (that, d, resolve, reject) {
 		var then;
 		var thenableCalled = false;
 		try {
-			if (d === that) {
+			if(d===that){
 				reject(new TypeError("Recursive Promise Detected"));
 				return;
 			}
 			then = d && d.then;
-			if ((isObject(d) || isFunction(d)) && isFunction(then)) {
-				then.call(d, function(val) {
-					if (thenableCalled) {
+			if( (isObject(d) || isFunction(d)) && isFunction(then)) {
+				then.call(d, function(val){
+					if(thenableCalled) {
 						return;
 					}
-					if (d === val) {
+					if(d===val){
 						reject(new TypeError("Recursive Promise Detected"));
 						return;
 					}
 					thenableCalled = true;
 					_resolveValueOrPromise(that, val, resolve, reject);
-				}, function(reason) {
-					if (thenableCalled) {
+				}, function(reason){
+					if(thenableCalled){
 						return;
 					}
 					thenableCalled = true;
@@ -94,101 +99,99 @@
 				resolve(d);
 			}
 		} catch (e) {
-			if (!thenableCalled) {
+			if(!thenableCalled) {
 				reject(e);
 			}
 		}
 	};
 
 	ImmediatePromise.prototype = {
-		_clearResolvedQueue: function() {
+		_clearResolvedQueue: function () {
 			while (this._pendingThen.length) {
 				this._pendingThen.shift()(this._value);
 			}
-		},
-		_clearRejectedQueue: function() {
-			while (this._pendingCatch.length) {
+		}, _clearRejectedQueue: function () {
+			while (this._pendingCatch.length){
 				this._pendingCatch.shift()(this._reason);
 			}
-		},
-		_runFn: function(fn) {
+		}, _runFn: function(fn){
 			if (this.immediate) {
 				fn();
 			} else {
 				setTimeout(fn, 0);
 			}
-		},
-		then: function(onResolved, onRejected) {
+		}, then: function (onResolved, onRejected) {
 			var that = this;
 			var p = {};
-			p = new ImmediatePromise(function(resolve, reject) {
-				var resolveValue = (that.state === promiseStates.rejected) ? null :
-					function(value) {
-						if (isFunction(onResolved)) {
-							try {
-								_resolveValueOrPromise(p, onResolved(value), resolve, reject);
-							} catch (e) {
-								reject(e);
-							}
-						} else {
-							resolve(value);
+			p = new ImmediatePromise(function(resolve, reject){
+				var resolveValue = (that.state === promiseStates.rejected) ? null : function(value){
+					if(isFunction(onResolved)){
+						try {
+							_resolveValueOrPromise(p, onResolved(value), resolve, reject);
+						} catch (e) {
+							reject (e);
 						}
-					};
+					} else {
+						resolve(value);
+					}
+				};
 
-				var catchReason = (that.state === promiseStates.resolved) ? null :
-					function(reason) {
-						if (isFunction(onRejected)) {
-							try {
-								_resolveValueOrPromise(p, onRejected(reason), resolve, reject);
-							} catch (e) {
-								reject(e);
-							}
-						} else {
-							reject(reason);
+				var catchReason = (that.state === promiseStates.resolved) ? null : function(reason) {
+					if(isFunction(onRejected)){
+						try {
+							_resolveValueOrPromise(p, onRejected(reason), resolve, reject);
+						} catch (e) {
+							reject (e);
 						}
-					};
-
+					} else {
+						reject(reason);
+					}
+				};
+				
 				that._pendingThen.push(resolveValue);
 				that._pendingCatch.push(catchReason);
+				clearTimeout(that._loggingErrorTimeout);
 				if (that.state === promiseStates.resolved) {
-					that._runFn(function() {
+					that._runFn(function(){
 						that._clearResolvedQueue();
-					})
+					});
 				} else if (that.state === promiseStates.rejected) {
-					that._runFn(function() {
+					that._runFn(function(){
 						that._clearRejectedQueue();
-					})
+					});
 				}
 			});
 			return p;
-		},
-		'catch': function(onRejected) {
+		}, 'catch': function (onRejected) {
 			this.then(null, onRejected);
 		}
-	}
+	};
+
 	ImmediatePromise.resolve = function(d) {
-		var p = new ImmediatePromise(function(resolve, reject) {
+		var p = new ImmediatePromise(function (resolve, reject) {
 			_resolveValueOrPromise({}, d, resolve, reject);
 		});
 		return p;
 	};
-
-	ImmediatePromise.reject = function(e) {
-		return new ImmediatePromise(function(resolve, reject) {
+	
+	ImmediatePromise.reject = function(e){
+		return new ImmediatePromise(function (resolve, reject) {
 			reject(e);
 		});
 	};
 
+	ImmediatePromise.version = '0.1.1';
+
+	ImmediatePromise.loggingErrors = true;
+	ImmediatePromise.loggingErrorTimeout = 3000;
 	ImmediatePromise.runImmediately = true;
-
+	
 	ImmediatePromise.states = promiseStates;
-
-	ImmediatePromise.version = '0.1.0';
 
 	// defining breathe
 
 	var breathe = {
-		version: '0.1.8-0.1.0'
+		version: '0.1.8-0.1.3'
 	};
 
 	var batchTime = 20;
@@ -205,10 +208,7 @@
 	var STATE_UNPAUSING = 5;
 	var STATE_STOPPING = 6;
 	var STATE_STOPPED = 7;
-	var STATE_FINISHED = 7;
-
-	// [starting,] running, pausing, paused, unpausing,
-	// stopping, stopped, and finished
+	var STATE_FINISHED = 8;
 
 	/**********************
 	 * Utility Functions
@@ -245,16 +245,89 @@
 		return a;
 	};
 
+	breathe.setTimeout = function(t) {
+		t = t || 0;
+		return {
+			prework: null,
+			postwork: function(fn) {
+				return setTimeout(fn, t);
+			},
+			timeout: function(fn) {
+				return setTimeout(fn, t);
+			},
+			cancel: function(a) {
+				return clearTimeout(a);
+			}
+		};
+	};
+	copyObj(breathe.setTimeout(), breathe.setTimeout);
+
+	breathe.requestAnimationFrame = function() {
+		return {
+			prework: function(fn) {
+				return requestAnimationFrame(fn);				
+			},
+			postwork: null,
+			timeout: function(fn) {
+				return requestAnimationFrame(fn);
+			},
+			cancel: function(a) {
+				return cancelAnimationFrame(a);
+			}
+		};
+	};
+	copyObj(breathe.requestAnimationFrame(), breathe.requestAnimationFrame);
+
+	var loopReenterMode = breathe.setTimeout;
+
+	breathe.setBatchTime = function(time) {
+		batchTime = time;
+		return breathe;
+	};
+
+	breathe.animationMode = function() {
+		// experimental mode
+		if (inMainLoop) {
+			console.log("Can't currently switch to animationMode while in main loop");			
+		} else {
+			loopReenterMode.cancel(loopReenterReference);
+			loopReenterMode = breathe.requestAnimationFrame;
+			breathe.setBatchTime(12);
+			loopReenterReference = loopReenterMode.timeout(doSomeWork);
+		}
+	};
+
+	breathe.timeoutMode = function() {
+		// experimental mode
+		if (inMainLoop) {
+			console.log("Can't currently switch to timeoutMode while in main loop");			
+		} else {
+			loopReenterMode.cancel(loopReenterReference);
+			loopReenterMode = breathe.setTimeout;
+			breathe.setBatchTime(20);
+			loopReenterReference = loopReenterMode.timeout(doSomeWork);
+		}
+	};
+
+
 	/**********************
 	 * Main loop
-	 ***********************/
+	 **********************/
 	var preWorkQueue = [];
 	var workQueue = [];
 	var postWorkQueue = [];
+	var loopReenterReference;
+	var inMainLoop = false;
+
 	// TODO: can add performance tracking if work is tagged with an id
 	var doSomeWork = function() {
 		var start = timer.now();
 		var ind;
+		inMainLoop = true;
+
+		if(loopReenterMode.prework) {
+			loopReenterReference = loopReenterMode.prework(doSomeWork);
+		}
 
 		// preWorkQueue is work that is always executed before a batch of work
 		// usually adds work to the workQueue and calls event handlers
@@ -286,7 +359,10 @@
 
 		// TODO: check actual execution time, maybe adjust timeout to reflect
 		// excessively long jobs?
-		setTimeout(doSomeWork, 0);
+		if(loopReenterMode.postwork) {
+			loopReenterReference = loopReenterMode.postwork(doSomeWork);
+		}
+		inMainLoop = false;
 	};
 	doSomeWork();
 
@@ -301,11 +377,6 @@
 			preWorkQueue.push(warmup);
 		};
 		warmup();
-	};
-
-	breathe.setBatchTime = function(time) {
-		batchTime = time;
-		return breathe;
 	};
 
 	/**********************
@@ -370,10 +441,10 @@
 				}
 				return pauseCallGate;
 			}
+			pauseCallGate = breatheGate();
 			// Add another event to the promise chain to trigger pauseCallGate,
 			// in case if the promise chain is at the end
 			// TODO: Check if this is necessary.
-			pauseCallGate = breatheGate();
 			ret.then(promisePass);
 			return pauseCallGate;
 		};
@@ -566,37 +637,11 @@
 	};
 	breathe.gate = breatheGate;
 
-	breathe.setTimeout = function(t) {
-		t = t || 0;
-		return {
-			timeout: function(fn) {
-				return setTimeout(fn, t);
-			},
-			cancel: function(a) {
-				return clearTimeout(a);
-			}
-		};
-	};
-	copyObj(breathe.setTimeout(), breathe.setTimeout);
-
-	breathe.requestAnimationFrame = function() {
-		return {
-			timeout: function(fn) {
-				return requestAnimationFrame(fn);
-			},
-			cancel: function(a) {
-				return cancelAnimationFrame(a);
-			}
-		};
-	};
-	copyObj(breathe.requestAnimationFrame(), breathe.requestAnimationFrame);
 
 	var generalLoop = function(config) {
 		return function(initVal) {
 			var condition = config.condition;
 			var body = config.body;
-			var target = config.chunkTime || 20;
-			var chunkTimeout = config.chunkTimeout || 0;
 			// value to pass to the loop body and the value returned from the body
 			var b = initVal;
 			var _state;
@@ -605,13 +650,11 @@
 			var stopCallGate = null;
 			var cancelID = null;
 			var batchIteration = 0;
+			var workbit;
 			var throttle = (config && config.throttle ? config.throttle : 0);
 			var retLoop = breathe.promise(new ImmediatePromise(function(resolve, reject) {
 				var warmup = function() {
-					workQueue.push({
-						work: work,
-						cooldown: cooldown
-					});
+					workQueue.push(workbit);
 					batchIteration = 0;
 					if (config.onBeginBatch) {
 						config.onBeginBatch();
@@ -663,23 +706,21 @@
 							b.then(function(arg) {
 								b = arg;
 								// can alternatively call reenterWork(), but that skips the current batch
-								workQueue.push({
-									work: work,
-									cooldown: cooldown
-								});
+								workQueue.push(workbit);
 							}, function(e) {
 								reject(e); // pass the error up the chain
 							});
 							return;
 						} else {
-							workQueue.push({
-								work: work,
-								cooldown: cooldown
-							});
+							workQueue.push(workbit);
 						}
 					} catch (e) {
 						reject(e);
 					}
+				};
+				workbit = {
+						work: work,
+						cooldown: cooldown
 				};
 				warmup();
 			})).addMethod('stop', function() {
@@ -743,7 +784,6 @@
 	};
 
 	breathe.stop = function(p) {
-
 		return breathe.promise(p && p.then && p.stop && p.stop());
 	};
 
