@@ -199,7 +199,7 @@
    **********************/
 
   var breathe = {
-    version: '0.2.0-0.1.1'
+    version: '0.2.0-0.1.2-ArrayFunctions'
   };
 
   /**********************
@@ -709,7 +709,7 @@
         addWork(workBit);
       };
       var cooldown = function () {
-        if (config.onBatchEnd()) {
+        if (config.onBatchEnd) {
           config.onBatchEnd();
         }
         addPreWork(preworkBit);
@@ -735,7 +735,7 @@
     retLoop.stop = function () {
       return stateHandler.stop();
     };
-    return retLoop;
+    return breatheChain(retLoop);
   };
 
   breathe.loop = function (condition, body, config) {
@@ -783,6 +783,118 @@
   };
 
   /* experimental functions */
+
+  var breatheForEachLoop = function (config) {
+    var forEachConfig = copyObj(config, {});
+    var body = config.body;
+    var items = config.items;
+    var i = 0;
+    forEachConfig = copyObj({
+      condition: function () {
+        return i < items.length;
+      },
+      body: function (val) {
+        return body(items[i++], val);
+      }
+    }, forEachConfig);
+    return breatheLoop(forEachConfig);
+  };
+
+  breathe.forEach = function (items, body, config) {
+    var forEachConfig;
+    config = copyObj(config, {});
+    if (arguments.length === 1) {
+      forEachConfig = arguments[0];
+    } else {
+      forEachConfig = copyObj({
+        items: items,
+        body: body
+      }, config);
+    }
+    return breatheForEachLoop(forEachConfig);
+  };
+
+  var breatheMap = function (config) {
+    var mapConfig = copyObj(config, {});
+    var callback = config.callback;
+    var items = config.items;
+    var i = 0;
+    var results = [];
+    mapConfig = copyObj({
+      condition: function () {
+        return i < items.length;
+      },
+      body: function () {
+        var ret = ImmediatePromise.resolve(callback(items[i]))
+          .then(function (result) {
+            results[i] = result;
+            i++;
+          });
+        return ret;
+      }
+    }, mapConfig);
+    return breatheLoop(mapConfig).then(function(){ return results; });
+  };
+
+  breathe.map = function (items, callback, config) {
+    var mapConfig;
+    config = copyObj(config, {});
+    if (arguments.length === 1) {
+      mapConfig = arguments[0];
+    } else {
+      mapConfig = copyObj({
+        items: items,
+        callback: callback
+      }, config);
+    }
+    return breatheMap(mapConfig);
+  };
+
+  breathe.chain.all = function (items) {
+    // still need to test pause/unpause/stop
+    var chains = items.map(function (item) {
+      return breatheChain(item);
+    });
+    var commandWrapper = function (command) {
+      return function () {
+        var callCount = 0;
+        var callGate = breatheGate();
+        chains.forEach(function (chain) {
+          chain[command]().then(function () {
+            callCount++;
+            if(callCount === items.length) {
+              callGate.resolve();
+            }          
+          }, function (err) {
+            callGate.reject(err);
+          });
+        });
+        return callGate;
+      };
+    };
+    var fulfilledGate = breatheGate();
+    var mainChain = breatheChain(fulfilledGate);
+    mainChain.pause = commandWrapper('pause');
+    mainChain.unpause = commandWrapper('unpause');
+    mainChain.stop = commandWrapper('stop');
+    var resolveCount = 0;
+    var results = [];
+    chains.forEach(function (chain, ind) {
+      chain.then(function (result) {
+        results[ind] = result;
+        resolveCount++;
+        if(resolveCount === items.length) {
+          fulfilledGate.resolve();
+        }
+      }, function (err) {
+        fulfilledGate.reject(err);
+      });
+    });
+    mainChain.then(function(){
+      return results;
+    });
+    return breatheChain(mainChain);
+  };
 
   breathe.stopChain = function (chain) {
     return breathe.chain(chain && chain.stop && chain.stop());
