@@ -1,5 +1,5 @@
 # breathe.js
-Using breathe.js, you can easily write nonblocking JavaScript running in the main thread of a web page.
+Using breathe.js, you can easily write nonblocking JavaScript that runs in the main thread of a web page.
 
 ## How does it work? ##
 With **breathe.js**, you divide large, processor-intensive functions into smaller tasks that don't run all at once. The library offers a replacement to loops, function calls, and code blocks, automatically exiting a function after a certain amount of time and allowing the webpage to respond, before returning to the function.
@@ -8,7 +8,7 @@ As a simple example, in traditional JavaScript, you may have a long looping func
 ```js
 function longLoopingFunction() {
   var i;
-  for(i = 0; i &lt; 100000; i++) {
+  for(i = 0; i < 100000; i++) {
     trickyFunction();
   }
 }

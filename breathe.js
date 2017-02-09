@@ -199,7 +199,7 @@
    **********************/
 
   var breathe = {
-    version: '0.2.0-0.1.0'
+    version: '0.2.0-0.1.1'
   };
 
   /**********************
@@ -280,6 +280,7 @@
   var uniqueId = function () {
     return _newWorkId++;
   };
+  breathe.uniqueId = uniqueId;
 
   var emptyFn = function () {};
 
@@ -584,29 +585,33 @@
     var pauser;
     var pauseGate;
 
-    var defaultPause = function () {
-      return stateHandler.pause();
-    };
-
-    var defaultUnpause = function () {
-      return stateHandler.unpause();
-    };
-
-    var defaultStop = function () {
-      return stateHandler.stop();
+    var atEnd = function() {
+        return endPromise.state === promiseStates.resolved
+          || endPromise.state === promiseStates.rejected;
     };
 
     var handleGates = function (val) {
       return stateHandler.gatesPromise(val);
     };
 
+    var stateCommandWrapper = function (command) {
+      return function () {
+        var gate = stateHandler[command]();
+          if (atEnd()) {
+            endPromise = endPromise.then(handleGates);
+          }
+          return gate;        
+      };
+    };
+
     var ret = {
       throttle: function (amount) {
         breatheThrottle(_id, amount);
       },
-      pause: defaultPause,
-      stop: defaultStop,
-      unpause: defaultUnpause,
+      pause: stateCommandWrapper('pause'),
+      stop: stateCommandWrapper('stop'),
+      unpause: stateCommandWrapper('unpause'),
+      atEnd: atEnd,
       then: function (o, e) {
         endPromise = endPromise
           .then(handleGates)
@@ -698,9 +703,15 @@
         }
       };
       var warmup = function () {
+        if (config.onBatchBegin) {
+          config.onBatchBegin();
+        }
         addWork(workBit);
       };
       var cooldown = function () {
+        if (config.onBatchEnd()) {
+          config.onBatchEnd();
+        }
         addPreWork(preworkBit);
       };
       workBit = {
@@ -771,6 +782,19 @@
     return breatheTimesLoop(timesConfig);
   };
 
+  /* experimental functions */
+
+  breathe.stopChain = function (chain) {
+    return breathe.chain(chain && chain.stop && chain.stop());
+  };
+
+  breathe.pauseChain = function (chain) {
+    return breathe.chain(chain && chain.pause && chain.pause());
+  };
+
+  breathe.unpauseChain = function (chain) {
+    return breathe.chain(chain && chain.unpause && chain.unpause());
+  };
 
   breathe.spin = function (id) {
     if (id === undefined) {
