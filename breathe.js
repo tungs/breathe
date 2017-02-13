@@ -199,7 +199,7 @@
    **********************/
 
   var breathe = {
-    version: '0.2.0-0.1.1'
+    version: '0.2.0-0.1.2'
   };
 
   /**********************
@@ -222,7 +222,8 @@
   var STATE_FINISHED = 9;
 
   /**********************
-   * Private Variables
+   * Private Variables 
+   * (used throughout)
    **********************/
 
   var _batchTime = DEFAULT_BATCH_TIME;
@@ -586,8 +587,8 @@
     var pauseGate;
 
     var atEnd = function() {
-        return endPromise.state === promiseStates.resolved
-          || endPromise.state === promiseStates.rejected;
+      return endPromise.state === promiseStates.resolved
+        || endPromise.state === promiseStates.rejected;
     };
 
     var handleGates = function (val) {
@@ -597,10 +598,10 @@
     var stateCommandWrapper = function (command) {
       return function () {
         var gate = stateHandler[command]();
-          if (atEnd()) {
-            endPromise = endPromise.then(handleGates);
-          }
-          return gate;        
+        if (atEnd()) {
+          endPromise = endPromise.then(handleGates);
+        }
+        return gate;        
       };
     };
 
@@ -630,7 +631,8 @@
                   }));
               });
             });
-          }, e ? fnInContext(id, e) : null).then(handleGates);
+          }, e ? fnInContext(id, e) : null)
+          .then(handleGates);
         return ret;
       },
       getWorkId: function () {
@@ -709,7 +711,7 @@
         addWork(workBit);
       };
       var cooldown = function () {
-        if (config.onBatchEnd()) {
+        if (config.onBatchEnd) {
           config.onBatchEnd();
         }
         addPreWork(preworkBit);
@@ -735,7 +737,7 @@
     retLoop.stop = function () {
       return stateHandler.stop();
     };
-    return retLoop;
+    return breatheChain(retLoop);
   };
 
   breathe.loop = function (condition, body, config) {
