@@ -45,7 +45,7 @@ var blockingChain = function (time) {
   });
 };
 
-describe('`breathe`', function() {
+describe('`breathe`', function () {
   beforeEach(function () {
     breathe.setBatchTime(17);
   });
@@ -122,7 +122,7 @@ describe('`breathe`', function() {
         setTimeout(function () {
           v = testValue;
         }, 15);
-        return d.then(function(){
+        return d.then(function () {
           assert.equal(v, testValue);
         });
       });
@@ -194,16 +194,20 @@ describe('`breathe`', function() {
 
     it('should repeat the body while the condition is true', function () {
       var i = 0;
-      return breathe.loop(function(){ return i < testIterations; }, function(){
+      return breathe.loop(function () {
+        return i < testIterations;
+      }, function () {
         i++;
-      }).then(function(d){
+      }).then(function (d) {
         assert.equal(i, testIterations);
       });
     });
 
     it('should not immediately run', function () {
       var i, c = initValue;
-      var loop = breathe.loop(function () { return i < testIterations; }, function () {
+      var loop = breathe.loop(function () {
+        return i < testIterations;
+      }, function () {
         i++;
         c = testValue;
       });
@@ -217,18 +221,20 @@ describe('`breathe`', function() {
       var iterations = 4;
       var timeout = 5;
       var t = getMilliseconds();
-      return breathe.loop(function () { return i < iterations; }, function () {
+      return breathe.loop(function () {
+        return i < iterations;
+      }, function () {
         i++;
         assert.equal(v, initValue);
         v = testValue;
-        return delayedPromise(timeout).then(function(){
+        return delayedPromise(timeout).then(function () {
           v = initValue;
         });
-      }).then(function(){
+      }).then(function () {
         assert.equal(v, initValue);
         // may want to tweak reasonableTime if setTimeout isn't accurate
-        var wiggleRoom = 3/4;
-        var reasonableTime = (getMilliseconds()-t) > iterations * timeout * wiggleRoom;
+        var wiggleRoom = 3 / 4;
+        var reasonableTime = (getMilliseconds() - t) > iterations * timeout * wiggleRoom;
         assert(reasonableTime);
       });
     });
@@ -237,14 +243,16 @@ describe('`breathe`', function() {
       breathe.setBatchTime(5);
       var v = initValue;
       var i = 0;
-      var ret = breathe.loop(function () { return i < 100; }, function () {
+      var ret = breathe.loop(function () {
+        return i < 100;
+      }, function () {
         i++;
         return blockingChain(1);
       });
       setTimeout(function () {
         v = testValue;
       }, 15);
-      return ret.then(function(){
+      return ret.then(function () {
         assert.equal(v, testValue);
       });
     });
@@ -253,28 +261,32 @@ describe('`breathe`', function() {
       breathe.setBatchTime(500);
       var v = initValue;
       var i = 0;
-      var ret = breathe.loop(function () { return i < 100; }, function () {
+      var ret = breathe.loop(function () {
+        return i < 100;
+      }, function () {
         i++;
         return blockingChain(1);
       });
       setTimeout(function () {
         v = testValue;
       }, 15);
-      return ret.then(function(){
+      return ret.then(function () {
         assert.equal(v, initValue);
       });
     });
 
     it('should be able to throw errors', function () {
       var i = 0;
-      return breathe.loop(function () { return i < 10; }, function (){
+      return breathe.loop(function () {
+        return i < 10;
+      }, function () {
         i++;
-        if (i===4) {
+        if (i === 4) {
           throw testErrorMessage;
         }
-      }).then(function(){
+      }).then(function () {
         throw new Error('Loop should have thrown an error');
-      }, function(err){
+      }, function (err) {
         assert.equal(err, testErrorMessage);
       });
     });
@@ -285,23 +297,29 @@ describe('`breathe`', function() {
       var outerLoopIterations = 6;
       var innerLoopIterations = 7;
       i = 0;
-      return breathe.loop(function () { return i < outerLoopIterations; }, function () {
+      return breathe.loop(function () {
+        return i < outerLoopIterations;
+      }, function () {
         i++;
         j = 0;
-        return breathe.loop(function () { return j < innerLoopIterations; }, function () {
+        return breathe.loop(function () {
+          return j < innerLoopIterations;
+        }, function () {
           j++;
           counter++;
         });
-      }).then(function(){
+      }).then(function () {
         assert.equal(counter, outerLoopIterations * innerLoopIterations);
       });
     });
 
     describe('`then`', function () {
-      
+
       it('should be able to resolve a value', function () {
         var i = 0;
-        return breathe.loop(function () { return i < testIterations; }, function () {
+        return breathe.loop(function () {
+          return i < testIterations;
+        }, function () {
           i++;
         }).then(function () {
           return i;
@@ -312,7 +330,9 @@ describe('`breathe`', function() {
 
       it('should be able to resolve a promise', function () {
         var i = 0;
-        return breathe.loop(function () { return i < testIterations; }, function () {
+        return breathe.loop(function () {
+          return i < testIterations;
+        }, function () {
           i++;
         }).then(function () {
           return Promise.resolve(i);
@@ -328,9 +348,9 @@ describe('`breathe`', function() {
   describe('`breathe.times`', function () {
     it('should repeat the body function for n iterations', function () {
       var i = 0;
-      return breathe.times(testIterations, function(){
+      return breathe.times(testIterations, function () {
         i++;
-      }).then(function(d){
+      }).then(function (d) {
         assert.equal(i, testIterations);
       });
     });
@@ -364,14 +384,14 @@ describe('`breathe`', function() {
       return breathe.times(iterations, function () {
         assert.equal(v, initValue);
         v = testValue;
-        return delayedPromise(timeout).then(function(){
+        return delayedPromise(timeout).then(function () {
           v = initValue;
         });
-      }).then(function(){
+      }).then(function () {
         assert.equal(v, initValue);
         // may want to tweak reasonableTime if setTimeout isn't accurate
-        var wiggleRoom = 3/4;
-        var reasonableTime = (getMilliseconds()-t) > iterations * timeout * wiggleRoom;
+        var wiggleRoom = 3 / 4;
+        var reasonableTime = (getMilliseconds() - t) > iterations * timeout * wiggleRoom;
         assert(reasonableTime);
       });
     });
@@ -385,7 +405,7 @@ describe('`breathe`', function() {
       setTimeout(function () {
         v = testValue;
       }, 15);
-      return ret.then(function(){
+      return ret.then(function () {
         assert.equal(v, testValue);
       });
     });
@@ -399,19 +419,19 @@ describe('`breathe`', function() {
       setTimeout(function () {
         v = testValue;
       }, 15);
-      return ret.then(function(){
+      return ret.then(function () {
         assert.equal(v, initValue);
       });
     });
 
     it('should be able to throw errors', function () {
       return breathe.times(10, function (i) {
-        if (i===4) {
+        if (i === 4) {
           throw testErrorMessage;
         }
-      }).then(function(){
+      }).then(function () {
         throw new Error('breathe.times should have thrown an error');
-      }, function(err){
+      }, function (err) {
         assert.equal(err, testErrorMessage);
       });
     });
@@ -424,7 +444,7 @@ describe('`breathe`', function() {
         return breathe.times(innerLoopIterations, function (j) {
           counter++;
         });
-      }).then(function(){
+      }).then(function () {
         assert.equal(counter, outerLoopIterations * innerLoopIterations);
       });
     });
