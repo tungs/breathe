@@ -1,0 +1,20 @@
+{
+  "name": "breathejs",
+  "version": "0.2.0-0.1.2",
+  "description": "a library to write nonblocking, asynchronous JavaScript",
+  "license": "BSD-3-Clause",
+  "homepage": "https://breathejs.org",
+  "author": {
+    "name": "Steve Tung"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/breathejs/breathejs.git"
+  },
+  "devDependencies": {
+    "mocha": "3"
+  },
+  "scripts": {
+    "test" : "./node_modules/mocha/bin/mocha"
+  }
+}
