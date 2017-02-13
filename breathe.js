@@ -199,7 +199,7 @@
    **********************/
 
   var breathe = {
-    version: '0.2.0-0.1.2'
+    version: '0.2.0-0.1.3'
   };
 
   /**********************
@@ -651,7 +651,6 @@
     return ret;
   };
   breathe.chain = breatheChain;
-  breathe.start = breatheChain;
 
   var breatheLoop = function (config) {
     var _id = _currWorkId;
@@ -798,7 +797,7 @@
     return breathe.chain(chain && chain.unpause && chain.unpause());
   };
 
-  breathe.spin = function (id) {
+  var breatheTag = function (id) {
     if (id === undefined) {
       id = uniqueId();
     }
@@ -813,14 +812,8 @@
     };
     return ret;
   };
-
-  breathe.spin.throttle = function (a) {
-    return breathe.spin().throttle(a);
-  };
-  breathe.spin.chain = fnInContext(uniqueId, breatheChain);
-  breathe.spin.loop = fnInContext(uniqueId, breathe.loop);
-  breathe.spin.times = fnInContext(uniqueId, breathe.times);
+  breathe.tag = breatheTag;
+  breathe.withId = breatheTag;
 
   return breathe;
-
 }));
