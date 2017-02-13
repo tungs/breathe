@@ -90,7 +90,7 @@ function sequentialLoops() {
 
 ## **breathe.js** API
 
-### Breathable Chains  
+### <a name="breathable-chain" href="#breathable-chain">#</a> Breathable Chains  
 **Breathable Chains** are similar to [traditional promises](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise) in that they implement `then()` and `catch()` methods, though they return the original chain object rather than a new promise. _Breathable chains_ implement additional methods to stop, pause, and unpause promise chains.
 
 * <a name="breathe-chain" href="#breathe-chain">#</a> breathe.**chain**([*initValue*]) 
@@ -111,7 +111,7 @@ function sequentialLoops() {
 * <a name="breathe-chain-stop" href="#breathe-chain-stop">#</a> _breathableChain_.**stop**()
     * requests _breathableChain_ to stop its current chain. Because not all promises in the chain may be stoppable, stopping may be delayed until the current promise resolves. Returns a promise that resolves when the current chain is stopped.
 
-### Loops
+### <a name="breathable-loops" href="#breathable-loops">#</a> Loops
 **Breathable Loops** are breathable chains that repeatedly iterate over a *body* while a *condition* is true. They can be stopped, paused, or unpaused. They can serve as a replacement to `while` loops.
 * <a name="breathe-loop-config" href="#breathe-loop-config">#</a> breathe.**loop**(*config*)
     * *config*.**condition** [required]
@@ -122,13 +122,13 @@ function sequentialLoops() {
 * <a name="breathe-loop-condition-body" href="#breathe-loop-condition-body">#</a> breathe.**loop**(*condition*, *body*, [*config*])
     * equivalent to calling breathe.loop, with *config.condition* and *config.body* set to *condition* and *body*
   
-### Special Loops
+### <a name="breathable-special-loops" href="#breathable-special-loops">#</a> Special Loops
 **Times Loops** are breathable chains that repeatedly iterate over a *body* for a fixed number of *iterations*. They can be stopped, paused, or unpaused. They can serve as a replacement to some `for` loops.
 * <a name="breathe-times-config" href="#breathe-times-config">#</a> breathe.**times**(*config*)
     * *config*.**iterations** [required]
         * a value equal to the number of iterations of the loop.
     * *config*.**body** [required]
-        * a function(iterationNumber) that gets called for every iteration of the loop. The first argument is the current iteration number (starting at 0). It can optionally return a value; if it returns a promise (breathable or traditional), the loop does not continue iterating until the promise resolves.
+        * a function(iterationNumber) that gets called for every iteration of the loop. The first argument is the current iteration number (starting at 0). It can optionally return a value; if it returns a promise or chain (breathable or traditional), the loop does not continue iterating until the promise or chain resolves.
 
 * <a name="breathe-times-iterations-body" href="#breathe-times-iterations-body">#</a> breathe.**times**(*iterations*, *body*, [*config*])
     * equivalent to calling breathe.times, with *config.iterations* and *config.body* set to *iterations* and *body*
