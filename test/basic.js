@@ -203,6 +203,20 @@ describe('`breathe`', function () {
       });
     });
 
+    it('can take a configuration object as an argument', function () {
+      var i = 0;
+      return breathe.loop({
+          condition: function () {
+              return i < testIterations;
+            }, 
+          body: function () {
+              i++;
+            }}).then(function (d) {
+        assert.equal(i, testIterations);
+      });
+    });
+
+
     it('should not immediately run', function () {
       var i, c = initValue;
       var loop = breathe.loop(function () {
@@ -351,6 +365,17 @@ describe('`breathe`', function () {
       return breathe.times(testIterations, function () {
         i++;
       }).then(function (d) {
+        assert.equal(i, testIterations);
+      });
+    });
+
+    it('can take a configuration object as an argument', function () {
+      var i = 0;
+      return breathe.times({
+          iterations: testIterations, 
+          body: function () {
+              i++;
+            }}).then(function (d) {
         assert.equal(i, testIterations);
       });
     });
