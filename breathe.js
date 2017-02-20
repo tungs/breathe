@@ -199,7 +199,7 @@
    **********************/
 
   var breathe = {
-    version: '0.2.0'
+    version: '0.2.1-0.1.0'
   };
 
   /**********************
@@ -373,7 +373,6 @@
   var doSomeWork = function () {
     var start = timer.now();
     var ind;
-    var item;
     var id;
     var throttleCount = {};
     _inMainLoop = true;
@@ -582,9 +581,6 @@
     var id = _currWorkId;
     var currVal;
     var stateHandler = new StateHandler();
-    var callGate;
-    var pauser;
-    var pauseGate;
 
     var atEnd = function() {
       return endPromise.state === promiseStates.resolved
@@ -659,9 +655,6 @@
     var condition = config.condition;
     var currVal = config.initVal;
     var stateHandler = new StateHandler();
-    var callGate;
-    var pauseGate;
-    var pauser;
     var retLoop = breatheChain(function (resolve, reject) {
       var workBit;
       var preworkBit;
