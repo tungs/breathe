@@ -199,7 +199,7 @@
    **********************/
 
   var breathe = {
-    version: '0.2.0'
+    version: '0.2.1'
   };
 
   /**********************
@@ -361,6 +361,26 @@
     }
   };
 
+  var customHandlers = {};
+  breathe.on = function (type, fn) {
+    customHandlers[type] = customHandlers[type] || [];
+    customHandlers[type].push(fn);
+  };
+  var trigger = function (type, data) {
+    var i;
+    var handlers = customHandlers[type];
+    if (!handlers) {
+      return;
+    }
+    for (i=0; i < handlers.length; i++) {
+      if (data) {
+        handlers[i].apply(this, data);
+      } else {
+        handlers[i]();
+      }
+    }
+  };
+
   /**********************
    * Main loop
    **********************/
@@ -373,10 +393,10 @@
   var doSomeWork = function () {
     var start = timer.now();
     var ind;
-    var item;
     var id;
     var throttleCount = {};
     _inMainLoop = true;
+    trigger('batchBegin');
     if (_workTimeouter.prework) {
       _workTimeoutRef = _workTimeouter.prework(doSomeWork);
     }
@@ -425,6 +445,7 @@
       _workTimeoutRef = _workTimeouter.postwork(doSomeWork);
     }
     _currWorkId = GENERAL_WORK_ID;
+    trigger('batchEnd');
     _inMainLoop = false;
   };
   // Start the main loop, even though there are no items in any of the queues
@@ -582,9 +603,6 @@
     var id = _currWorkId;
     var currVal;
     var stateHandler = new StateHandler();
-    var callGate;
-    var pauser;
-    var pauseGate;
 
     var atEnd = function() {
       return endPromise.state === promiseStates.resolved
@@ -659,9 +677,6 @@
     var condition = config.condition;
     var currVal = config.initVal;
     var stateHandler = new StateHandler();
-    var callGate;
-    var pauseGate;
-    var pauser;
     var retLoop = breatheChain(function (resolve, reject) {
       var workBit;
       var preworkBit;
