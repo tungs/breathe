@@ -37,9 +37,11 @@ var blockingRecursiveChain = function (remaining, fn) {
 
 var blockingChain = function (time) {
   return breathe.chain(function (resolve, reject) {
+    var i=0;
     var start = getMilliseconds();
     while (getMilliseconds() - start < time) {
       // wait
+      i++;
     }
     resolve();
   });
@@ -218,7 +220,7 @@ describe('`breathe`', function () {
 
 
     it('should not immediately run', function () {
-      var i, c = initValue;
+      var i = 0, c = initValue;
       var loop = breathe.loop(function () {
         return i < testIterations;
       }, function () {
@@ -258,7 +260,7 @@ describe('`breathe`', function () {
       var v = initValue;
       var i = 0;
       var ret = breathe.loop(function () {
-        return i < 100;
+        return i < 200;
       }, function () {
         i++;
         return blockingChain(1);
@@ -276,7 +278,7 @@ describe('`breathe`', function () {
       var v = initValue;
       var i = 0;
       var ret = breathe.loop(function () {
-        return i < 100;
+        return i < 200;
       }, function () {
         i++;
         return blockingChain(1);

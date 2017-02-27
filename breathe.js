@@ -199,7 +199,7 @@
    **********************/
 
   var breathe = {
-    version: '0.2.1-0.1.0'
+    version: '0.2.1-0.1.2'
   };
 
   /**********************
@@ -361,6 +361,26 @@
     }
   };
 
+  var customHandlers = {};
+  breathe.on = function (type, fn) {
+    customHandlers[type] = customHandlers[type] || [];
+    customHandlers[type].push(fn);
+  };
+  var trigger = function (type, data) {
+    var i;
+    var handlers = customHandlers[type];
+    if (!handlers) {
+      return;
+    }
+    for (i=0; i < handlers.length; i++) {
+      if (data) {
+        handlers[i].apply(this, data);
+      } else {
+        handlers[i]();
+      }
+    }
+  };
+
   /**********************
    * Main loop
    **********************/
@@ -376,6 +396,7 @@
     var id;
     var throttleCount = {};
     _inMainLoop = true;
+    trigger('batchBegin');
     if (_workTimeouter.prework) {
       _workTimeoutRef = _workTimeouter.prework(doSomeWork);
     }
@@ -424,6 +445,7 @@
       _workTimeoutRef = _workTimeouter.postwork(doSomeWork);
     }
     _currWorkId = GENERAL_WORK_ID;
+    trigger('batchEnd');
     _inMainLoop = false;
   };
   // Start the main loop, even though there are no items in any of the queues
